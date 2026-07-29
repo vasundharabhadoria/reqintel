@@ -1,0 +1,34 @@
+# Environment variables
+.env
+
+# Virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE
+.vscode/
+.idea/
+
+# Testing/cache
+.pytest_cache/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Type/lint caches
+.mypy_cache/
+.ruff_cache/
+
+# Python packaging
+*.egg-info/
+build/
+dist/
+
+# Extra env variants
+.env.*.local
