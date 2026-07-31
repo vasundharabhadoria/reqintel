@@ -25,6 +25,15 @@ class Settings(BaseSettings):
         ..., description="Supabase JWT secret"
     )
 
+    DATABASE_URL: str = Field(
+        ...,
+        description=(
+            "Supabase Supavisor SESSION POOLER connection string, "
+            "e.g. postgresql+asyncpg://postgres.<project-ref>:<password>"
+            "@aws-0-<region>.pooler.supabase.com:5432/postgres"
+        ),
+    )
+
     @property
     def jwt_issuer(self) -> str:
         """Expected `iss` claim on Supabase-issued access tokens."""

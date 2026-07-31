@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from api.v1.auth import router as auth_router
+from api.v1.projects import router as projects_router
 
 
 app = FastAPI(
@@ -10,6 +11,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(projects_router)
 
 
 @app.get(
