@@ -28,12 +28,12 @@ export async function apiRequest(endpoint, options = {}) {
     if (typeof data?.detail === "string") {
       errorMessage = data.detail;
     } else if (Array.isArray(data?.detail)) {
-      errorMessage = data.detail
-        .map((error) => error.msg)
-        .join(", ");
+      errorMessage = data.detail.map((error) => error.msg).join(", ");
     }
 
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    throw error;
   }
 
   return data;

@@ -1,0 +1,264 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  color: #1f2937;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1c64f2, #0d9488);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.app-brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(28, 100, 242, 0.1);
+  color: #1c64f2;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: #f9fafb;
+}
+
+.lang-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #1c64f2;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  padding: 10px;
+  min-width: 200px;
+  z-index: 50;
+}
+
+.profile-dropdown-email {
+  margin: 0 0 8px;
+  padding: 0 4px;
+  font-size: 12px;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.profile-dropdown-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.profile-dropdown-logout:hover {
+  background: #fef2f2;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+}
+
+.app-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.app-sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.sidebar-item:hover {
+  background: #f3f4f6;
+}
+
+.sidebar-item-active {
+  background: rgba(28, 100, 242, 0.08);
+  color: #1c64f2;
+  font-weight: 700;
+  border-left: 3px solid #1c64f2;
+  padding-left: 9px;
+}
+
+.sidebar-item-disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.sidebar-logout {
+  margin-top: 20px;
+}
+
+.app-content {
+  flex: 1;
+  padding: 28px 32px;
+  min-width: 0;
+}
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 12px;
+  color: #6b7280;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .app-body {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .app-sidebar ul {
+    flex-direction: row;
+  }
+
+  .sidebar-logout {
+    margin-top: 0;
+  }
+}

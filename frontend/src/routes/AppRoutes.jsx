@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "../features/auth/pages/LoginPage";
 import RegisterPage from "../features/auth/pages/RegisterPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
+import ProjectsPage from "../features/projects/pages/ProjectsPage";
+import ProjectWorkspacePage from "../features/projects/pages/ProjectWorkspacePage";
 import ProtectedRoute from "./ProtectedRoute";
 
 function AppRoutes() {
@@ -18,6 +20,24 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects/:projectId"
+        element={
+          <ProtectedRoute>
+            <ProjectWorkspacePage />
           </ProtectedRoute>
         }
       />
