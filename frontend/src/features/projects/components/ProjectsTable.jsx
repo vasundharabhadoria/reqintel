@@ -1,5 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Archive, MoreVertical, Pencil } from "lucide-react";
+import {
+  FloatingPortal,
+  autoUpdate,
+  flip,
+  offset,
+  shift,
+  useClick,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  useRole,
+} from "@floating-ui/react";
 
 import StatusBadge from "./StatusBadge";
 
@@ -14,54 +26,68 @@ function formatDate(isoString) {
 
 function ProjectRowMenu({ project, onEdit, onArchive }) {
   const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
 
-  useEffect(() => {
-    if (!open) return undefined;
+  const { refs, floatingStyles, context } = useFloating({
+    open,
+    onOpenChange: setOpen,
+    placement: "bottom-end",
+    middleware: [offset(6), flip({ padding: 8 }), shift({ padding: 8 })],
+    whileElementsMounted: autoUpdate,
+  });
 
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    }
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context, { role: "menu" });
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    click,
+    dismiss,
+    role,
+  ]);
 
   return (
-    <div className="row-menu" ref={menuRef}>
+    <div className="row-menu">
       <button
         type="button"
+        ref={refs.setReference}
+        {...getReferenceProps()}
         className="row-menu-trigger"
-        onClick={() => setOpen((current) => !current)}
         aria-label={`Actions for ${project.name}`}
       >
         <MoreVertical size={18} />
       </button>
 
       {open && (
-        <div className="row-menu-dropdown">
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onEdit(project);
-            }}
+        <FloatingPortal>
+          <div
+            ref={refs.setFloating}
+            style={floatingStyles}
+            className="row-menu-dropdown"
+            {...getFloatingProps()}
           >
-            <Pencil size={14} /> Edit
-          </button>
-          <button
-            type="button"
-            className="row-menu-danger"
-            onClick={() => {
-              setOpen(false);
-              onArchive(project);
-            }}
-          >
-            <Archive size={14} /> Archive
-          </button>
-        </div>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onEdit(project);
+              }}
+            >
+              <Pencil size={14} /> Edit
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="row-menu-danger"
+              onClick={() => {
+                setOpen(false);
+                onArchive(project);
+              }}
+            >
+              <Archive size={14} /> Archive
+            </button>
+          </div>
+        </FloatingPortal>
       )}
     </div>
   );

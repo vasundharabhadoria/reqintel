@@ -139,15 +139,12 @@
 }
 
 .row-menu-dropdown {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
   min-width: 140px;
-  z-index: 30;
+  z-index: 1000;
   overflow: hidden;
 }
 

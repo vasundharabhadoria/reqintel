@@ -8,8 +8,6 @@ from supabase import Client
 from auth.exceptions import AuthenticationError
 from auth.schemas import UserResponse
 from core.security import verify_access_token
-from core.supabase import get_supabase_client
-
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -18,7 +16,6 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(
         bearer_scheme
     ),
-    supabase: Client = Depends(get_supabase_client),
 ) -> UserResponse:
     """
     Return the authenticated user from a verified Supabase JWT.
@@ -33,7 +30,6 @@ def get_current_user(
 
     try:
         claims = verify_access_token(
-            supabase=supabase,
             token=credentials.credentials,
         )
 
@@ -54,7 +50,14 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token does not contain an email.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return UserResponse(
         id=str(user_id),
-        email=str(email) if email else None,
+        email=str(email),
     )

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -12,6 +12,18 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
+import {
+  FloatingPortal,
+  autoUpdate,
+  flip,
+  offset,
+  shift,
+  useClick,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  useRole,
+} from "@floating-ui/react";
 
 import { useAuth } from "../../hooks/useAuth";
 import "./appShell.css";
@@ -28,20 +40,24 @@ function AppShell({ active, children }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef(null);
 
-  useEffect(() => {
-    if (!profileOpen) return undefined;
+  const { refs, floatingStyles, context } = useFloating({
+    open: profileOpen,
+    onOpenChange: setProfileOpen,
+    placement: "bottom-end",
+    middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 })],
+    whileElementsMounted: autoUpdate,
+  });
 
-    function handleClickOutside(event) {
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
-        setProfileOpen(false);
-      }
-    }
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context, { role: "menu" });
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [profileOpen]);
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    click,
+    dismiss,
+    role,
+  ]);
 
   async function handleLogout() {
     await logout();
@@ -70,11 +86,12 @@ function AppShell({ active, children }) {
             <ChevronDown size={14} />
           </div>
 
-          <div className="profile-menu" ref={profileRef}>
+          <div className="profile-menu">
             <button
               type="button"
+              ref={refs.setReference}
+              {...getReferenceProps()}
               className="profile-trigger"
-              onClick={() => setProfileOpen((current) => !current)}
             >
               <span className="profile-avatar">
                 {user?.email?.charAt(0).toUpperCase() || "U"}
@@ -84,16 +101,24 @@ function AppShell({ active, children }) {
             </button>
 
             {profileOpen && (
-              <div className="profile-dropdown">
-                <p className="profile-dropdown-email">{user?.email}</p>
-                <button
-                  type="button"
-                  className="profile-dropdown-logout"
-                  onClick={handleLogout}
+              <FloatingPortal>
+                <div
+                  ref={refs.setFloating}
+                  style={floatingStyles}
+                  className="profile-dropdown"
+                  {...getFloatingProps()}
                 >
-                  <LogOut size={14} /> Logout
-                </button>
-              </div>
+                  <p className="profile-dropdown-email">{user?.email}</p>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="profile-dropdown-logout"
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={14} /> Logout
+                  </button>
+                </div>
+              </FloatingPortal>
             )}
           </div>
         </div>
