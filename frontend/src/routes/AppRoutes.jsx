@@ -4,7 +4,7 @@ import LoginPage from "../features/auth/pages/LoginPage";
 import RegisterPage from "../features/auth/pages/RegisterPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
 import ProjectsPage from "../features/projects/pages/ProjectsPage";
-import ProjectWorkspacePage from "../features/projects/pages/ProjectWorkspacePage";
+import ProjectWorkspacePage from "../features/requirements/pages/ProjectWorkspacePage";
 import ProtectedRoute from "./ProtectedRoute";
 
 function AppRoutes() {

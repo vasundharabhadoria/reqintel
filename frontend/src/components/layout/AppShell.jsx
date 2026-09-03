@@ -31,7 +31,7 @@ import "./appShell.css";
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: LayoutGrid, to: "/dashboard", enabled: true },
   { key: "projects", label: "Projects", icon: Folder, to: "/projects", enabled: true },
-  { key: "requirements", label: "Requirements", icon: FileText, to: null, enabled: false },
+  { key: "requirements", label: "Requirements", icon: FileText, to: "/projects", enabled: true },
   { key: "reports", label: "Reports", icon: FileBarChart, to: null, enabled: false },
   { key: "settings", label: "Settings", icon: Settings, to: null, enabled: false },
 ];

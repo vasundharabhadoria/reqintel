@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export async function apiRequest(endpoint, options = {}) {
   const token = getAccessToken();
+  const isFormData = options.body instanceof FormData;
 
   let response;
 
@@ -11,7 +12,7 @@ export async function apiRequest(endpoint, options = {}) {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },

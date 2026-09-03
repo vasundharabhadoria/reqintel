@@ -54,6 +54,7 @@ def verify_access_token(token: str) -> dict[str, Any]:
                 algorithms=["HS256"],
                 audience="authenticated",
                 issuer=settings.jwt_issuer,
+                leeway=60,
             )
         else:
             signing_key = _jwks_client.get_signing_key_from_jwt(token)
@@ -64,6 +65,7 @@ def verify_access_token(token: str) -> dict[str, Any]:
                 algorithms=[algorithm],
                 audience="authenticated",
                 issuer=settings.jwt_issuer,
+                leeway=60,
             )
 
     except AuthenticationError:
