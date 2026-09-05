@@ -7,6 +7,7 @@ from auth.schemas import UserResponse
 from core.dependencies import get_current_user
 from db.session import get_db
 from models.requirement import (
+    EmailSourceCreate,
     ExtractedRequirementSummary,
     ManualRequirementCreate,
     RequirementListResponse,
@@ -69,6 +70,26 @@ async def create_manual_requirement(
 
     service = RequirementService(db)
     return await service.create_manual_requirement(
+        UUID(current_user.id), project_id, payload
+    )
+
+
+@router.post(
+    "/sources/email",
+    response_model=RequirementSourceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_email_source(
+    project_id: UUID,
+    payload: EmailSourceCreate,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RequirementSourceResponse:
+    """Create a source from pasted email content, ready for the same
+    rule-based requirement extraction used by uploaded documents."""
+
+    service = RequirementService(db)
+    return await service.create_email_source(
         UUID(current_user.id), project_id, payload
     )
 

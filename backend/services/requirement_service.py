@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.storage import REQUIREMENT_SOURCES_BUCKET, get_storage_client
 from models.requirement import (
+    EmailSourceCreate,
     ExtractedRequirementSummary,
     ManualRequirementCreate,
     RequirementResponse,
@@ -272,6 +273,32 @@ class RequirementService:
 
         return await self.get_requirement(owner_id, project_id, requirement["id"])
 
+    async def create_email_source(
+        self, owner_id: UUID, project_id: UUID, payload: EmailSourceCreate
+    ) -> RequirementSourceResponse:
+        """Create a requirement_sources row from pasted email content.
+
+        The text is already available, so the source lands directly in
+        "completed" status (no file to store, nothing to parse) — the
+        caller then runs the same rule-based extraction used for uploaded
+        documents via POST .../sources/{source_id}/extract-requirements.
+        """
+        await self._require_project(owner_id, project_id)
+
+        source = await self.repo.create_source(
+            project_id=project_id,
+            source_type="email",
+            uploaded_by=owner_id,
+            original_filename=payload.subject,
+            storage_path=None,
+            file_size_bytes=None,
+            mime_type=None,
+            raw_text=payload.content,
+            processing_status="completed",
+        )
+
+        return RequirementSourceResponse.model_validate(source)
+
     # ---------------------------------------------------------------
     # Requirement identification
     # ---------------------------------------------------------------
@@ -352,7 +379,7 @@ class RequirementService:
         status_filter: str | None,
         search: str | None,
         source_id: UUID | None,
-    ) -> RequirementResponse:
+    ) -> list[RequirementResponse]:
         await self._require_project(owner_id, project_id)
         rows = await self.repo.list_requirements(
             project_id, status_filter, search, source_id

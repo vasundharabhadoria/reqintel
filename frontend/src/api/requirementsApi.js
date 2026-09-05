@@ -10,11 +10,10 @@ export function uploadSource(projectId, file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  // apiRequest always sets Content-Type: application/json; override it here
-  // so the browser can set the multipart boundary itself.
+  // client.js already omits Content-Type for FormData bodies, letting the
+  // browser set the multipart boundary itself — do not override it here.
   return apiRequest(`/api/v1/projects/${projectId}/requirements/sources/upload`, {
     method: "POST",
-    headers: { "Content-Type": undefined },
     body: formData,
   });
 }
@@ -25,6 +24,16 @@ export function createManualRequirement(projectId, { title, requirementText }) {
     body: JSON.stringify({
       title,
       requirement_text: requirementText,
+    }),
+  });
+}
+
+export function createEmailSource(projectId, { subject, content }) {
+  return apiRequest(`/api/v1/projects/${projectId}/requirements/sources/email`, {
+    method: "POST",
+    body: JSON.stringify({
+      subject: subject || null,
+      content,
     }),
   });
 }

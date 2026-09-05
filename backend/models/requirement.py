@@ -39,6 +39,15 @@ class ManualRequirementCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     requirement_text: str = Field(min_length=1)
 
+class EmailSourceCreate(BaseModel):
+    """Payload for creating a requirement_sources row from pasted email
+    content. Unlike ManualRequirementCreate this does not create a
+    requirement directly — it lands as a source with raw_text already
+    populated, ready for the same rule-based extraction pipeline used by
+    uploaded documents (POST .../sources/{source_id}/extract-requirements)."""
+
+    subject: str | None = Field(default=None, max_length=255)
+    content: str = Field(min_length=1)
 
 class RequirementVersionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -63,7 +63,9 @@ function ProjectWorkspacePage() {
   }, [fetchProject]);
 
   return (
-    <AppShell active="projects">
+    <AppShell 
+      active={activeTab === "requirements" ? "requirements" : "projects"}
+    >
       <button type="button" className="btn-link-back" onClick={() => navigate("/projects")}>
         <ArrowLeft size={16} /> Back to Projects
       </button>

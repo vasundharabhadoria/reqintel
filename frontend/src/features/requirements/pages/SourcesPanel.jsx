@@ -3,6 +3,7 @@ import { UploadCloud } from "lucide-react";
 
 import StatusPill from "../components/StatusPill";
 import ManualRequirementModal from "../components/ManualRequirementModal";
+import EmailSourceModal from "../components/EmailSourceModal";
 import { extractRequirements, extractSourceText, listSources, uploadSource } from "../../../api/requirementsApi";
 import { useToast } from "../../../hooks/useToast";
 import "../styles/requirements.css";
@@ -17,6 +18,7 @@ function SourcesPanel({ projectId }) {
   const [uploading, setUploading] = useState(false);
   const [busySourceId, setBusySourceId] = useState(null);
   const [manualOpen, setManualOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   const fetchSources = useCallback(async () => {
     setLoading(true);
@@ -91,6 +93,13 @@ function SourcesPanel({ projectId }) {
           </button>
           <button
             type="button"
+            className="btn btn-secondary"
+            onClick={() => setEmailOpen(true)}
+          >
+            Add Email Content
+          </button>
+          <button
+            type="button"
             className="btn btn-primary"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -129,7 +138,10 @@ function SourcesPanel({ projectId }) {
           {sources.map((source) => (
             <div key={source.id} className="req-source-row">
               <div>
-                <strong>{source.original_filename || "Manual entry"}</strong>
+                <strong>
+                  {source.original_filename ||
+                    (source.source_type === "email" ? "Email content" : "Manual entry")}
+                </strong>
                 <div className="muted-text">{source.source_type.toUpperCase()}</div>
                 {source.extraction_error && (
                   <div className="form-error">{source.extraction_error}</div>
@@ -138,14 +150,16 @@ function SourcesPanel({ projectId }) {
               <StatusPill status={source.processing_status} />
               {source.source_type !== "manual" && (
                 <>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={busySourceId === source.id || source.processing_status === "parsing"}
-                    onClick={() => handleExtractText(source.id)}
-                  >
-                    Extract Text
-                  </button>
+                  {source.source_type !== "email" && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busySourceId === source.id || source.processing_status === "parsing"}
+                      onClick={() => handleExtractText(source.id)}
+                    >
+                      Extract Text
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -165,7 +179,19 @@ function SourcesPanel({ projectId }) {
         open={manualOpen}
         onClose={() => setManualOpen(false)}
         projectId={projectId}
-        onCreated={() => showToast("You can find it in the Requirements tab.", "success")}
+        onCreated={() => {
+          showToast("You can find it in the Requirements tab.", "success");
+          fetchSources();
+        }}
+      />
+
+      <EmailSourceModal
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        projectId={projectId}
+        onCreated={() => {
+          fetchSources();
+        }}
       />
     </div>
   );
