@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.storage import REQUIREMENT_SOURCES_BUCKET, get_storage_client
@@ -17,21 +18,25 @@ from services.requirement_extraction import ExtractionError, extract_text
 from services.requirement_identification import RuleBasedExtractionStrategy
 from services.requirement_repository import RequirementRepository
 
-_ALLOWED_EXTENSIONS = {".pdf": "pdf", ".docx": "docx", ".txt": "txt"}
+
+_ALLOWED_EXTENSIONS = {
+    ".pdf": "pdf",
+    ".docx": "docx",
+    ".txt": "txt",
+}
+
 _ALLOWED_MIME_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
 }
-_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # matches the bucket's file_size_limit
+
+_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 
 
 class RequirementService:
     """
-    Business logic for Module 2 (Requirements). Every public method takes
-    the authenticated user's id and the target project_id; ownership is
-    verified via ProjectRepository before any requirement-scoped work
-    happens, so a caller can never act on another user's project.
+    Business logic for Module 2 (Requirements).
     """
 
     def __init__(self, db: AsyncSession) -> None:
@@ -41,32 +46,56 @@ class RequirementService:
         self.storage = get_storage_client()
         self.extraction_strategy = RuleBasedExtractionStrategy()
 
-    async def _require_project(self, owner_id: UUID, project_id: UUID) -> None:
-        project = await self.projects.get_by_id(project_id, owner_id)
+    async def _require_project(
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+    ) -> None:
+        project = await self.projects.get_by_id(
+            project_id,
+            owner_id,
+        )
+
         if project is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found.",
             )
 
-    async def _require_source(self, project_id: UUID, source_id: UUID) -> dict:
-        source = await self.repo.get_source(source_id, project_id)
+    async def _require_source(
+        self,
+        project_id: UUID,
+        source_id: UUID,
+    ) -> dict:
+        source = await self.repo.get_source(
+            source_id,
+            project_id,
+        )
+
         if source is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Requirement source not found.",
             )
+
         return source
 
     async def _require_requirement(
-        self, project_id: UUID, requirement_id: UUID
+        self,
+        project_id: UUID,
+        requirement_id: UUID,
     ) -> dict:
-        requirement = await self.repo.get_requirement(requirement_id, project_id)
+        requirement = await self.repo.get_requirement(
+            requirement_id,
+            project_id,
+        )
+
         if requirement is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Requirement not found.",
             )
+
         return requirement
 
     # ---------------------------------------------------------------
@@ -74,16 +103,33 @@ class RequirementService:
     # ---------------------------------------------------------------
 
     async def list_sources(
-        self, owner_id: UUID, project_id: UUID
+        self,
+        owner_id: UUID,
+        project_id: UUID,
     ) -> list[RequirementSourceResponse]:
-        await self._require_project(owner_id, project_id)
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
         rows = await self.repo.list_sources(project_id)
-        return [RequirementSourceResponse.model_validate(r) for r in rows]
+
+        return [
+            RequirementSourceResponse.model_validate(row)
+            for row in rows
+        ]
 
     async def upload_source(
-        self, owner_id: UUID, project_id: UUID, file: UploadFile
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+        file: UploadFile,
     ) -> RequirementSourceResponse:
-        await self._require_project(owner_id, project_id)
+
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
 
         if not file.filename:
             raise HTTPException(
@@ -91,8 +137,13 @@ class RequirementService:
                 detail="No file selected.",
             )
 
-        extension = "." + file.filename.rsplit(".", 1)[-1].lower() \
-            if "." in file.filename else ""
+        extension = (
+            "."
+            + file.filename.rsplit(".", 1)[-1].lower()
+            if "." in file.filename
+            else ""
+        )
+
         source_type = _ALLOWED_EXTENSIONS.get(extension)
 
         if source_type is None:
@@ -101,7 +152,10 @@ class RequirementService:
                 detail="Only PDF, DOCX, and TXT files are supported.",
             )
 
-        if file.content_type and file.content_type not in _ALLOWED_MIME_TYPES:
+        if (
+            file.content_type
+            and file.content_type not in _ALLOWED_MIME_TYPES
+        ):
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail="File content type does not match a supported format.",
@@ -121,7 +175,6 @@ class RequirementService:
                 detail="File exceeds the 50 MB upload limit.",
             )
 
-        # Create the DB row first to get a stable id for the storage path.
         source = await self.repo.create_source(
             project_id=project_id,
             source_type=source_type,
@@ -134,14 +187,24 @@ class RequirementService:
             processing_status="uploaded",
         )
 
-        storage_path = f"{project_id}/{source['id']}{extension}"
+        storage_path = (
+            f"{project_id}/{source['id']}{extension}"
+        )
 
         try:
-            self.storage.storage.from_(REQUIREMENT_SOURCES_BUCKET).upload(
+            self.storage.storage.from_(
+                REQUIREMENT_SOURCES_BUCKET
+            ).upload(
                 storage_path,
                 file_bytes,
-                {"content-type": file.content_type or "application/octet-stream"},
+                {
+                    "content-type": (
+                        file.content_type
+                        or "application/octet-stream"
+                    )
+                },
             )
+
         except Exception as exc:
             await self.repo.update_source_processing(
                 source["id"],
@@ -149,31 +212,102 @@ class RequirementService:
                 processing_status="failed",
                 extraction_error=f"Storage upload failed: {exc}",
             )
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to store the uploaded file.",
             ) from exc
 
         updated = await self.repo.update_source_processing(
-            source["id"], project_id, processing_status="uploaded"
+            source["id"],
+            project_id,
+            processing_status="uploaded",
         )
-        # storage_path has no dedicated setter above; set it via a direct
-        # follow-up update so create_source stays a single-purpose insert.
+
         await self.db.execute(
-            __import__("sqlalchemy").text(
-                "UPDATE requirement_sources SET storage_path = :p WHERE id = :id"
+            text(
+                """
+                UPDATE requirement_sources
+                SET storage_path = :storage_path
+                WHERE id = :source_id
+                """
             ),
-            {"p": storage_path, "id": source["id"]},
+            {
+                "storage_path": storage_path,
+                "source_id": source["id"],
+            },
         )
+
         updated["storage_path"] = storage_path
 
-        return RequirementSourceResponse.model_validate(updated)
+        return RequirementSourceResponse.model_validate(
+            updated
+        )
+
+    async def get_source_file(
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+        source_id: UUID,
+    ):
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
+        source = await self._require_source(
+            project_id,
+            source_id,
+        )
+
+        if not source.get("storage_path"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stored file not found.",
+            )
+
+        try:
+            file_bytes = self.storage.storage.from_(
+                REQUIREMENT_SOURCES_BUCKET
+            ).download(
+                source["storage_path"]
+            )
+
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve the stored file.",
+            ) from exc
+
+        from fastapi.responses import Response
+
+        return Response(
+            content=file_bytes,
+            media_type=source.get("mime_type")
+            or "application/octet-stream",
+            headers={
+                "Content-Disposition": (
+                    f'inline; filename="{source["original_filename"]}"'
+                )
+            },
+        )
 
     async def extract_source_text(
-        self, owner_id: UUID, project_id: UUID, source_id: UUID
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+        source_id: UUID,
     ) -> RequirementSourceResponse:
-        await self._require_project(owner_id, project_id)
-        source = await self._require_source(project_id, source_id)
+
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
+        source = await self._require_source(
+            project_id,
+            source_id,
+        )
 
         if source["source_type"] == "manual":
             raise HTTPException(
@@ -188,27 +322,39 @@ class RequirementService:
             )
 
         await self.repo.update_source_processing(
-            source_id, project_id, processing_status="parsing"
+            source_id,
+            project_id,
+            processing_status="parsing",
         )
 
         try:
             file_bytes = self.storage.storage.from_(
                 REQUIREMENT_SOURCES_BUCKET
-            ).download(source["storage_path"])
+            ).download(
+                source["storage_path"]
+            )
+
         except Exception as exc:
             await self.repo.update_source_processing(
                 source_id,
                 project_id,
                 processing_status="failed",
-                extraction_error=f"Could not download stored file: {exc}",
+                extraction_error=(
+                    f"Could not download stored file: {exc}"
+                ),
             )
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to retrieve the stored file.",
             ) from exc
 
         try:
-            extracted_text = extract_text(file_bytes, source["source_type"])
+            extracted_text = extract_text(
+                file_bytes,
+                source["source_type"],
+            )
+
         except ExtractionError as exc:
             await self.repo.update_source_processing(
                 source_id,
@@ -216,6 +362,7 @@ class RequirementService:
                 processing_status="failed",
                 extraction_error=str(exc),
             )
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(exc),
@@ -226,8 +373,11 @@ class RequirementService:
                 source_id,
                 project_id,
                 processing_status="failed",
-                extraction_error="No text could be extracted from the document.",
+                extraction_error=(
+                    "No text could be extracted from the document."
+                ),
             )
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No text could be extracted from the document.",
@@ -239,16 +389,26 @@ class RequirementService:
             processing_status="completed",
             raw_text=extracted_text,
         )
-        return RequirementSourceResponse.model_validate(updated)
+
+        return RequirementSourceResponse.model_validate(
+            updated
+        )
 
     # ---------------------------------------------------------------
-    # Manual entry
+    # Manual requirement
     # ---------------------------------------------------------------
 
     async def create_manual_requirement(
-        self, owner_id: UUID, project_id: UUID, payload: ManualRequirementCreate
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+        payload: ManualRequirementCreate,
     ) -> RequirementResponse:
-        await self._require_project(owner_id, project_id)
+
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
 
         source = await self.repo.create_source(
             project_id=project_id,
@@ -262,54 +422,87 @@ class RequirementService:
             processing_status="completed",
         )
 
-        requirement, _version = await self._create_requirement_with_version(
-            project_id=project_id,
-            source_id=source["id"],
-            title=payload.title,
-            requirement_text=payload.requirement_text,
-            created_by=owner_id,
+        requirement, _version = (
+            await self._create_requirement_with_version(
+                project_id=project_id,
+                source_id=source["id"],
+                title=payload.title,
+                requirement_text=payload.requirement_text,
+                created_by=owner_id,
+            )
         )
 
-        return await self.get_requirement(owner_id, project_id, requirement["id"])
+        return await self.get_requirement(
+            owner_id,
+            project_id,
+            requirement["id"],
+        )
 
     # ---------------------------------------------------------------
     # Requirement identification
     # ---------------------------------------------------------------
 
     async def extract_requirements(
-        self, owner_id: UUID, project_id: UUID, source_id: UUID
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+        source_id: UUID,
     ) -> ExtractedRequirementSummary:
-        await self._require_project(owner_id, project_id)
-        source = await self._require_source(project_id, source_id)
+
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
+        source = await self._require_source(
+            project_id,
+            source_id,
+        )
 
         if not source["raw_text"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This source has no extracted text yet. Run text "
-                "extraction first.",
+                detail=(
+                    "This source has no extracted text yet. "
+                    "Run text extraction first."
+                ),
             )
 
-        candidate_statements = self.extraction_strategy.identify(
-            source["raw_text"]
+        candidate_statements = (
+            self.extraction_strategy.identify(
+                source["raw_text"]
+            )
         )
 
         created: list[RequirementResponse] = []
 
         for statement in candidate_statements:
-            title = statement[:80] + ("…" if len(statement) > 80 else "")
-            requirement, _version = await self._create_requirement_with_version(
-                project_id=project_id,
-                source_id=source_id,
-                title=title,
-                requirement_text=statement,
-                created_by=owner_id,
+            title = (
+                statement[:80]
+                + ("…" if len(statement) > 80 else "")
             )
+
+            requirement, _version = (
+                await self._create_requirement_with_version(
+                    project_id=project_id,
+                    source_id=source_id,
+                    title=title,
+                    requirement_text=statement,
+                    created_by=owner_id,
+                )
+            )
+
             created.append(
-                await self.get_requirement(owner_id, project_id, requirement["id"])
+                await self.get_requirement(
+                    owner_id,
+                    project_id,
+                    requirement["id"],
+                )
             )
 
         return ExtractedRequirementSummary(
-            requirements_created=len(created), items=created
+            requirements_created=len(created),
+            items=created,
         )
 
     async def _create_requirement_with_version(
@@ -320,8 +513,14 @@ class RequirementService:
         requirement_text: str,
         created_by: UUID,
     ) -> tuple[dict, dict]:
-        await self.repo.lock_project_for_code_generation(project_id)
-        code = await self.repo.next_requirement_code(project_id)
+
+        await self.repo.lock_project_for_code_generation(
+            project_id
+        )
+
+        code = await self.repo.next_requirement_code(
+            project_id
+        )
 
         requirement = await self.repo.create_requirement(
             project_id=project_id,
@@ -352,19 +551,194 @@ class RequirementService:
         status_filter: str | None,
         search: str | None,
         source_id: UUID | None,
-    ) -> RequirementResponse:
-        await self._require_project(owner_id, project_id)
-        rows = await self.repo.list_requirements(
-            project_id, status_filter, search, source_id
+    ) -> list[RequirementResponse]:
+
+        await self._require_project(
+            owner_id,
+            project_id,
         )
-        return [RequirementResponse.model_validate(r) for r in rows]
+
+        rows = await self.repo.list_requirements(
+            project_id,
+            status_filter,
+            search,
+            source_id,
+        )
+
+        return [
+            RequirementResponse.model_validate(row)
+            for row in rows
+        ]
 
     async def get_requirement(
-        self, owner_id: UUID, project_id: UUID, requirement_id: UUID
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+        requirement_id: UUID,
     ) -> RequirementResponse:
-        await self._require_project(owner_id, project_id)
-        row = await self._require_requirement(project_id, requirement_id)
+
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
+        row = await self._require_requirement(
+            project_id,
+            requirement_id,
+        )
+
         return RequirementResponse.model_validate(row)
+
+    # ---------------------------------------------------------------
+    # RULE ENGINE
+    # ---------------------------------------------------------------
+
+    async def analyze_project_requirements(
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+    ) -> dict:
+
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
+        requirements = await self.repo.list_requirements(
+            project_id,
+            None,
+            None,
+            None,
+        )
+
+        from services.rule_engine import analyze_requirements
+
+        rule_engine_input = []
+
+        for req in requirements:
+
+            requirement_text = req.get(
+                "current_requirement_text"
+            )
+
+            if requirement_text is None:
+                requirement_text = req.get(
+                    "text",
+                    "",
+                )
+
+            rule_engine_input.append(
+                {
+                    "id": str(req["id"]),
+                    "text": requirement_text or "",
+                }
+            )
+
+        results = analyze_requirements(
+            rule_engine_input
+        )
+
+        saved_count = 0
+
+        for result in results:
+
+            requirement_id = UUID(
+                str(result["id"])
+            )
+
+            version_result = await self.db.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM requirement_versions
+                    WHERE requirement_id = :requirement_id
+                    ORDER BY version_number DESC
+                    LIMIT 1
+                    """
+                ),
+                {
+                    "requirement_id": requirement_id,
+                },
+            )
+
+            version_row = version_result.mappings().first()
+
+            if version_row is None:
+                continue
+
+            requirement_version_id = version_row["id"]
+
+            # Remove previous validation results for this
+            # version so clicking Analyze again does not create
+            # duplicate rows.
+            await self.db.execute(
+                text(
+                    """
+                    DELETE FROM rule_validation
+                    WHERE requirement_version_id = :version_id
+                    """
+                ),
+                {
+                    "version_id": requirement_version_id,
+                },
+            )
+
+            for finding in result.get("findings", []):
+
+                await self.db.execute(
+                    text(
+                        """
+                        INSERT INTO rule_validation
+                        (
+                            requirement_version_id,
+                            rule_name,
+                            passed,
+                            message,
+                            severity
+                        )
+                        VALUES
+                        (
+                            :requirement_version_id,
+                            :rule_name,
+                            :passed,
+                            :message,
+                            :severity
+                        )
+                        """
+                    ),
+                    {
+                        "requirement_version_id": (
+                            requirement_version_id
+                        ),
+                        "rule_name": (
+                            finding.get("rule_name")
+                            or "Unknown Rule"
+                        ),
+                        "passed": bool(
+                            finding.get("passed", False)
+                        ),
+                        "message": (
+                            finding.get("message")
+                            or finding.get(
+                                "description",
+                                "",
+                            )
+                        ),
+                        "severity": finding.get(
+                            "severity"
+                        ),
+                    },
+                )
+
+                saved_count += 1
+
+        await self.db.commit()
+
+        return {
+            "total": len(results),
+            "saved": saved_count,
+            "results": results,
+        }
 
     # ---------------------------------------------------------------
     # Versions
@@ -377,11 +751,24 @@ class RequirementService:
         requirement_id: UUID,
         payload: RequirementVersionCreate,
     ) -> RequirementVersionResponse:
-        await self._require_project(owner_id, project_id)
-        await self._require_requirement(project_id, requirement_id)
 
-        await self.repo.lock_requirement_for_versioning(requirement_id)
-        next_number = await self.repo.next_version_number(requirement_id)
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
+        await self._require_requirement(
+            project_id,
+            requirement_id,
+        )
+
+        await self.repo.lock_requirement_for_versioning(
+            requirement_id
+        )
+
+        next_number = await self.repo.next_version_number(
+            requirement_id
+        )
 
         version = await self.repo.create_version(
             requirement_id=requirement_id,
@@ -390,13 +777,33 @@ class RequirementService:
             change_summary=payload.change_summary,
             created_by=owner_id,
         )
-        return RequirementVersionResponse.model_validate(version)
+
+        return RequirementVersionResponse.model_validate(
+            version
+        )
 
     async def list_versions(
-        self, owner_id: UUID, project_id: UUID, requirement_id: UUID
+        self,
+        owner_id: UUID,
+        project_id: UUID,
+        requirement_id: UUID,
     ) -> list[RequirementVersionResponse]:
-        await self._require_project(owner_id, project_id)
-        await self._require_requirement(project_id, requirement_id)
 
-        rows = await self.repo.list_versions(requirement_id)
-        return [RequirementVersionResponse.model_validate(r) for r in rows]
+        await self._require_project(
+            owner_id,
+            project_id,
+        )
+
+        await self._require_requirement(
+            project_id,
+            requirement_id,
+        )
+
+        rows = await self.repo.list_versions(
+            requirement_id
+        )
+
+        return [
+            RequirementVersionResponse.model_validate(row)
+            for row in rows
+        ]

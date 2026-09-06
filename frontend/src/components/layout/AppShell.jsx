@@ -3,13 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Bell,
   ChevronDown,
-  FileBarChart,
   FileText,
   Folder,
   Globe,
   LayoutGrid,
   LogOut,
-  Settings,
   Sparkles,
 } from "lucide-react";
 import {
@@ -29,11 +27,27 @@ import { useAuth } from "../../hooks/useAuth";
 import "./appShell.css";
 
 const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutGrid, to: "/dashboard", enabled: true },
-  { key: "projects", label: "Projects", icon: Folder, to: "/projects", enabled: true },
-  { key: "requirements", label: "Requirements", icon: FileText, to: "/projects", enabled: true },
-  { key: "reports", label: "Reports", icon: FileBarChart, to: null, enabled: false },
-  { key: "settings", label: "Settings", icon: Settings, to: null, enabled: false },
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    icon: LayoutGrid,
+    to: "/dashboard",
+    enabled: true,
+  },
+  {
+    key: "projects",
+    label: "Projects",
+    icon: Folder,
+    to: "/projects",
+    enabled: true,
+  },
+  {
+    key: "requirements",
+    label: "Requirements",
+    icon: FileText,
+    to: "/projects",
+    enabled: true,
+  },
 ];
 
 function AppShell({ active, children }) {
@@ -69,14 +83,21 @@ function AppShell({ active, children }) {
       <header className="app-topbar">
         <div className="app-brand">
           <span className="app-logo">R</span>
+
           <span className="app-brand-name">ReqIntel</span>
+
           <span className="app-badge">
-            <Sparkles size={12} /> AI-POWERED
+            <Sparkles size={12} />
+            AI-POWERED
           </span>
         </div>
 
         <div className="app-topbar-actions">
-          <button type="button" className="icon-button" aria-label="Notifications">
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Notifications"
+          >
             <Bell size={18} />
           </button>
 
@@ -96,7 +117,9 @@ function AppShell({ active, children }) {
               <span className="profile-avatar">
                 {user?.email?.charAt(0).toUpperCase() || "U"}
               </span>
+
               <span className="profile-label">Business Analyst</span>
+
               <ChevronDown size={14} />
             </button>
 
@@ -108,14 +131,18 @@ function AppShell({ active, children }) {
                   className="profile-dropdown"
                   {...getFloatingProps()}
                 >
-                  <p className="profile-dropdown-email">{user?.email}</p>
+                  <p className="profile-dropdown-email">
+                    {user?.email}
+                  </p>
+
                   <button
                     type="button"
                     role="menuitem"
                     className="profile-dropdown-logout"
                     onClick={handleLogout}
                   >
-                    <LogOut size={14} /> Logout
+                    <LogOut size={14} />
+                    Logout
                   </button>
                 </div>
               </FloatingPortal>
@@ -130,22 +157,15 @@ function AppShell({ active, children }) {
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
 
-              if (!item.enabled) {
-                return (
-                  <li key={item.key}>
-                    <span className="sidebar-item sidebar-item-disabled" title="Coming soon">
-                      <Icon size={18} />
-                      {item.label}
-                    </span>
-                  </li>
-                );
-              }
-
               return (
                 <li key={item.key}>
                   <Link
                     to={item.to}
-                    className={`sidebar-item ${active === item.key ? "sidebar-item-active" : ""}`}
+                    className={`sidebar-item ${
+                      active === item.key
+                        ? "sidebar-item-active"
+                        : ""
+                    }`}
                   >
                     <Icon size={18} />
                     {item.label}
@@ -155,7 +175,11 @@ function AppShell({ active, children }) {
             })}
           </ul>
 
-          <button type="button" className="sidebar-item sidebar-logout" onClick={handleLogout}>
+          <button
+            type="button"
+            className="sidebar-item sidebar-logout"
+            onClick={handleLogout}
+          >
             <LogOut size={18} />
             Logout
           </button>
@@ -165,8 +189,12 @@ function AppShell({ active, children }) {
       </div>
 
       <footer className="app-footer">
-        <span>© 2026 ReqIntel Technologies. All rights reserved.</span>
+        <span>
+          © 2026 ReqIntel Technologies. All rights reserved.
+        </span>
+
         <span>Version 1.0.0</span>
+
         <span>Your data is secure with us</span>
       </footer>
     </div>

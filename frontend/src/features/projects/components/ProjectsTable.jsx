@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Archive, MoreVertical, Pencil } from "lucide-react";
+import {
+  Archive,
+  MoreVertical,
+  Pencil,
+  RotateCcw,
+} from "lucide-react";
+
 import {
   FloatingPortal,
   autoUpdate,
@@ -17,6 +23,7 @@ import StatusBadge from "./StatusBadge";
 
 function formatDate(isoString) {
   if (!isoString) return "—";
+
   return new Date(isoString).toLocaleDateString("en-US", {
     month: "short",
     day: "2-digit",
@@ -24,14 +31,23 @@ function formatDate(isoString) {
   });
 }
 
-function ProjectRowMenu({ project, onEdit, onArchive }) {
+function ProjectRowMenu({
+  project,
+  onEdit,
+  onArchive,
+  onRestore,
+}) {
   const [open, setOpen] = useState(false);
 
   const { refs, floatingStyles, context } = useFloating({
     open,
     onOpenChange: setOpen,
     placement: "bottom-end",
-    middleware: [offset(6), flip({ padding: 8 }), shift({ padding: 8 })],
+    middleware: [
+      offset(6),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+    ],
     whileElementsMounted: autoUpdate,
   });
 
@@ -39,11 +55,10 @@ function ProjectRowMenu({ project, onEdit, onArchive }) {
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: "menu" });
 
-  const { getReferenceProps, getFloatingProps } = useInteractions([
-    click,
-    dismiss,
-    role,
-  ]);
+  const { getReferenceProps, getFloatingProps } =
+    useInteractions([click, dismiss, role]);
+
+  const isArchived = project.status === "archived";
 
   return (
     <div className="row-menu">
@@ -73,19 +88,36 @@ function ProjectRowMenu({ project, onEdit, onArchive }) {
                 onEdit(project);
               }}
             >
-              <Pencil size={14} /> Edit
+              <Pencil size={14} />
+              Edit
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="row-menu-danger"
-              onClick={() => {
-                setOpen(false);
-                onArchive(project);
-              }}
-            >
-              <Archive size={14} /> Archive
-            </button>
+
+            {isArchived ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onRestore(project);
+                }}
+              >
+                <RotateCcw size={14} />
+                Restore
+              </button>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                className="row-menu-danger"
+                onClick={() => {
+                  setOpen(false);
+                  onArchive(project);
+                }}
+              >
+                <Archive size={14} />
+                Archive
+              </button>
+            )}
           </div>
         </FloatingPortal>
       )}
@@ -93,7 +125,13 @@ function ProjectRowMenu({ project, onEdit, onArchive }) {
   );
 }
 
-function ProjectsTable({ projects, onOpen, onEdit, onArchive }) {
+function ProjectsTable({
+  projects,
+  onOpen,
+  onEdit,
+  onArchive,
+  onRestore,
+}) {
   return (
     <table className="projects-table">
       <thead>
@@ -106,28 +144,50 @@ function ProjectsTable({ projects, onOpen, onEdit, onArchive }) {
           <th aria-label="Actions" />
         </tr>
       </thead>
+
       <tbody>
         {projects.map((project) => (
           <tr key={project.id}>
             <td>
               <div className="project-name-cell">
-                <span className="project-name-icon" aria-hidden="true">
+                <span
+                  className="project-name-icon"
+                  aria-hidden="true"
+                >
                   {project.name?.charAt(0).toUpperCase() || "P"}
                 </span>
-                <span className="project-name-text">{project.name}</span>
+
+                <span className="project-name-text">
+                  {project.name}
+                </span>
               </div>
             </td>
+
             <td>{project.project_type || "—"}</td>
+
             <td>
               <StatusBadge status={project.status} />
             </td>
+
             <td>{formatDate(project.created_at)}</td>
+
             <td>{formatDate(project.updated_at)}</td>
+
             <td className="projects-table-actions">
-              <button type="button" className="btn btn-primary btn-small" onClick={() => onOpen(project)}>
+              <button
+                type="button"
+                className="btn btn-primary btn-small"
+                onClick={() => onOpen(project)}
+              >
                 Open
               </button>
-              <ProjectRowMenu project={project} onEdit={onEdit} onArchive={onArchive} />
+
+              <ProjectRowMenu
+                project={project}
+                onEdit={onEdit}
+                onArchive={onArchive}
+                onRestore={onRestore}
+              />
             </td>
           </tr>
         ))}

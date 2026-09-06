@@ -11,8 +11,19 @@ REQUIREMENT_KEYWORDS = [
     "will provide",
     "system shall",
     "system must",
+    "the system",
+    "system should",
+    "users can",
+    "user can",
+    "users should",
+    "user should",
+    "the user",
+    "allows users",
+    "allow users",
+    "supports",
+    "enable users",
+    "enables users",
 ]
-
 _MIN_STATEMENT_LENGTH = 12
 _MAX_STATEMENT_LENGTH = 2000
 _LEADING_NUMBERING_RE = re.compile(

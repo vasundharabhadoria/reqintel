@@ -5,6 +5,7 @@ import RegisterPage from "../features/auth/pages/RegisterPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
 import ProjectsPage from "../features/projects/pages/ProjectsPage";
 import ProjectWorkspacePage from "../features/requirements/pages/ProjectWorkspacePage";
+import RuleEnginePage from "../features/rule-engine/pages/RuleEnginePage";
 import ProtectedRoute from "./ProtectedRoute";
 
 function AppRoutes() {
@@ -38,6 +39,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ProjectWorkspacePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects/:projectId/rule-engine"
+        element={
+          <ProtectedRoute>
+            <RuleEnginePage />
           </ProtectedRoute>
         }
       />

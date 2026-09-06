@@ -24,7 +24,12 @@ export function getProject(projectId) {
   });
 }
 
-export function createProject({ name, clientName, projectType, description }) {
+export function createProject({
+  name,
+  clientName,
+  projectType,
+  description,
+}) {
   return apiRequest("/api/v1/projects", {
     method: "POST",
     body: JSON.stringify({
@@ -36,7 +41,10 @@ export function createProject({ name, clientName, projectType, description }) {
   });
 }
 
-export function updateProject(projectId, { name, clientName, projectType, description }) {
+export function updateProject(
+  projectId,
+  { name, clientName, projectType, description }
+) {
   return apiRequest(`/api/v1/projects/${projectId}`, {
     method: "PUT",
     body: JSON.stringify({
@@ -51,5 +59,14 @@ export function updateProject(projectId, { name, clientName, projectType, descri
 export function archiveProject(projectId) {
   return apiRequest(`/api/v1/projects/${projectId}`, {
     method: "DELETE",
+  });
+}
+
+export function updateProjectStatus(projectId, status) {
+  return apiRequest(`/api/v1/projects/${projectId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status,
+    }),
   });
 }

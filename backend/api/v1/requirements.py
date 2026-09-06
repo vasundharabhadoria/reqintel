@@ -20,21 +20,49 @@ from models.requirement import (
 )
 from services.requirement_service import RequirementService
 
+
 router = APIRouter(
     prefix="/api/v1/projects/{project_id}/requirements",
     tags=["Requirements"],
 )
 
 
-@router.get("/sources", response_model=RequirementSourceListResponse)
+@router.get(
+    "/sources",
+    response_model=RequirementSourceListResponse,
+)
 async def list_sources(
     project_id: UUID,
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RequirementSourceListResponse:
     service = RequirementService(db)
-    items = await service.list_sources(UUID(current_user.id), project_id)
-    return RequirementSourceListResponse(total=len(items), items=items)
+
+    items = await service.list_sources(
+        UUID(current_user.id),
+        project_id,
+    )
+
+    return RequirementSourceListResponse(
+        total=len(items),
+        items=items,
+    )
+
+
+@router.get("/sources/{source_id}/file")
+async def get_source_file(
+    project_id: UUID,
+    source_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.get_source_file(
+        UUID(current_user.id),
+        project_id,
+        source_id,
+    )
 
 
 @router.post(
@@ -51,7 +79,12 @@ async def upload_source(
     """Upload a PDF/DOCX/TXT requirement source document."""
 
     service = RequirementService(db)
-    return await service.upload_source(UUID(current_user.id), project_id, file)
+
+    return await service.upload_source(
+        UUID(current_user.id),
+        project_id,
+        file,
+    )
 
 
 @router.post(
@@ -68,8 +101,11 @@ async def create_manual_requirement(
     """Create a requirement manually, without document extraction."""
 
     service = RequirementService(db)
+
     return await service.create_manual_requirement(
-        UUID(current_user.id), project_id, payload
+        UUID(current_user.id),
+        project_id,
+        payload,
     )
 
 
@@ -86,8 +122,11 @@ async def extract_source_text(
     """Extract raw text from an uploaded document source."""
 
     service = RequirementService(db)
+
     return await service.extract_source_text(
-        UUID(current_user.id), project_id, source_id
+        UUID(current_user.id),
+        project_id,
+        source_id,
     )
 
 
@@ -102,32 +141,69 @@ async def extract_requirements(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ExtractedRequirementSummary:
-    """Run rule-based requirement identification over an already-extracted
-    source's raw text, creating a requirement + version 1 for each hit."""
+    """Run rule-based requirement identification."""
 
     service = RequirementService(db)
+
     return await service.extract_requirements(
-        UUID(current_user.id), project_id, source_id
+        UUID(current_user.id),
+        project_id,
+        source_id,
     )
 
 
-@router.get("", response_model=RequirementListResponse)
+@router.get(
+    "",
+    response_model=RequirementListResponse,
+)
 async def list_requirements(
     project_id: UUID,
-    status_filter: RequirementStatus | None = Query(default=None, alias="status"),
-    search: str | None = Query(default=None, max_length=200),
+    status_filter: RequirementStatus | None = Query(
+        default=None,
+        alias="status",
+    ),
+    search: str | None = Query(
+        default=None,
+        max_length=200,
+    ),
     source_id: UUID | None = Query(default=None),
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RequirementListResponse:
     service = RequirementService(db)
+
     items = await service.list_requirements(
-        UUID(current_user.id), project_id, status_filter, search, source_id
+        UUID(current_user.id),
+        project_id,
+        status_filter,
+        search,
+        source_id,
     )
-    return RequirementListResponse(total=len(items), items=items)
+
+    return RequirementListResponse(
+        total=len(items),
+        items=items,
+    )
 
 
-@router.get("/{requirement_id}", response_model=RequirementResponse)
+@router.post("/analyze")
+async def analyze_project_requirements(
+    project_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.analyze_project_requirements(
+        UUID(current_user.id),
+        project_id,
+    )
+
+
+@router.get(
+    "/{requirement_id}",
+    response_model=RequirementResponse,
+)
 async def get_requirement(
     project_id: UUID,
     requirement_id: UUID,
@@ -135,8 +211,11 @@ async def get_requirement(
     db: AsyncSession = Depends(get_db),
 ) -> RequirementResponse:
     service = RequirementService(db)
+
     return await service.get_requirement(
-        UUID(current_user.id), project_id, requirement_id
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
     )
 
 
@@ -153,8 +232,12 @@ async def create_version(
     db: AsyncSession = Depends(get_db),
 ) -> RequirementVersionResponse:
     service = RequirementService(db)
+
     return await service.create_version(
-        UUID(current_user.id), project_id, requirement_id, payload
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+        payload,
     )
 
 
@@ -169,7 +252,14 @@ async def list_versions(
     db: AsyncSession = Depends(get_db),
 ) -> RequirementVersionListResponse:
     service = RequirementService(db)
+
     items = await service.list_versions(
-        UUID(current_user.id), project_id, requirement_id
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
     )
-    return RequirementVersionListResponse(total=len(items), items=items)
+
+    return RequirementVersionListResponse(
+        total=len(items),
+        items=items,
+    )
