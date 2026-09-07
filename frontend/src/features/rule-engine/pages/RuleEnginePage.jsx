@@ -48,7 +48,10 @@ function RuleEnginePage() {
       const data = await getProject(projectId);
       setProject(data);
     } catch (err) {
-      console.error("Failed to load project:", err);
+      console.error(
+        "Failed to load project:",
+        err
+      );
     } finally {
       setProjectLoading(false);
     }
@@ -56,7 +59,7 @@ function RuleEnginePage() {
 
   /*
    * ---------------------------------------------------------
-   * LOAD REQUIREMENTS + SOURCES + RULE ENGINE RESULTS
+   * LOAD REQUIREMENTS + SOURCES + ANALYSIS
    * ---------------------------------------------------------
    */
 
@@ -66,24 +69,80 @@ function RuleEnginePage() {
     setLoading(true);
     setError("");
 
+    const storageKey =
+      `rule-engine-analysis-${projectId}`;
+
     try {
+      /*
+       * First check whether RequirementsPanel has
+       * already completed the Rule Engine.
+       */
+      const cachedAnalysis =
+        sessionStorage.getItem(storageKey);
+
+      /*
+       * Requirements and sources can be fetched
+       * at the same time.
+       */
       const [
         requirementsData,
-        analysisData,
         sourceData,
       ] = await Promise.all([
         listRequirements(projectId),
-        analyzeRequirements(projectId),
         listSources(projectId),
       ]);
 
-      const items = requirementsData?.items || [];
-      const results = analysisData?.results || [];
-      const sources = sourceData?.items || [];
+      let analysisData = null;
 
       /*
-       * Create source lookup by source ID
+       * Use cached analysis if available.
        */
+      if (cachedAnalysis) {
+        try {
+          analysisData = JSON.parse(
+            cachedAnalysis
+          );
+        } catch (parseError) {
+          console.error(
+            "Failed to parse cached analysis:",
+            parseError
+          );
+
+          /*
+           * Remove corrupted cache so that
+           * the fallback can run correctly.
+           */
+          sessionStorage.removeItem(storageKey);
+        }
+      }
+
+      /*
+       * FALLBACK
+       *
+       * If the user directly opens Rule Engine
+       * without going through Analyze Requirements,
+       * run the analysis normally.
+       */
+      if (!analysisData) {
+        analysisData =
+          await analyzeRequirements(projectId);
+      }
+
+      const items =
+        requirementsData?.items || [];
+
+      const sources =
+        sourceData?.items || [];
+
+      const results =
+        analysisData?.results || [];
+
+      /*
+       * -----------------------------------------------------
+       * SOURCE LOOKUP
+       * -----------------------------------------------------
+       */
+
       const sourcesById = new Map(
         sources.map((source) => [
           String(source.id),
@@ -92,9 +151,12 @@ function RuleEnginePage() {
       );
 
       /*
-       * Create findings lookup by requirement ID
+       * -----------------------------------------------------
+       * FINDINGS LOOKUP
+       * -----------------------------------------------------
        */
-      const findingsById = new Map(
+
+      const findingsByRequirementId = new Map(
         results.map((result) => [
           String(result.id),
           result.findings || [],
@@ -102,25 +164,19 @@ function RuleEnginePage() {
       );
 
       /*
-       * Merge requirements with:
-       * - findings
-       * - source document name
-       * - complete source information
+       * -----------------------------------------------------
+       * MERGE REQUIREMENTS
+       * -----------------------------------------------------
        */
-      const mergedRequirements = items.map(
-        (requirement) => {
+
+      const mergedRequirements =
+        items.map((requirement) => {
           const source = requirement.source_id
             ? sourcesById.get(
                 String(requirement.source_id)
               )
             : null;
 
-          /*
-           * Keep the source URL if backend already provides one.
-           *
-           * Different backends may use different field names,
-           * so we safely check the common possibilities.
-           */
           const sourceUrl =
             requirement.source_document_url ||
             requirement.file_url ||
@@ -137,7 +193,7 @@ function RuleEnginePage() {
             ...requirement,
 
             findings:
-              findingsById.get(
+              findingsByRequirementId.get(
                 String(requirement.id)
               ) || [],
 
@@ -147,14 +203,24 @@ function RuleEnginePage() {
               source?.filename ||
               "—",
 
-            source_document_url: sourceUrl,
+            source_document_url:
+              sourceUrl,
 
             source_document: source,
           };
-        }
+        });
+
+      setRequirements(
+        mergedRequirements
       );
 
-      setRequirements(mergedRequirements);
+      /*
+       * Analysis has now been consumed.
+       * Remove temporary cache.
+       */
+      sessionStorage.removeItem(
+        storageKey
+      );
     } catch (err) {
       console.error(
         "Failed to load rule engine:",
@@ -179,7 +245,10 @@ function RuleEnginePage() {
   useEffect(() => {
     fetchProject();
     fetchRequirements();
-  }, [fetchProject, fetchRequirements]);
+  }, [
+    fetchProject,
+    fetchRequirements,
+  ]);
 
   /*
    * ---------------------------------------------------------
@@ -188,54 +257,67 @@ function RuleEnginePage() {
    */
 
   const stats = useMemo(() => {
-    const total = requirements.length;
+    const total =
+      requirements.length;
 
-    const pending = requirements.filter((req) => {
-      const status = req.status?.toLowerCase();
+    const pending =
+      requirements.filter((req) => {
+        const status =
+          req.status?.toLowerCase();
 
-      return (
-        status === "pending" ||
-        status === "pending review"
+        return (
+          status === "pending" ||
+          status === "pending review"
+        );
+      }).length;
+
+    const approved =
+      requirements.filter(
+        (req) =>
+          req.status?.toLowerCase() ===
+          "approved"
+      ).length;
+
+    const rejected =
+      requirements.filter(
+        (req) =>
+          req.status?.toLowerCase() ===
+          "rejected"
+      ).length;
+
+    const issues =
+      requirements.reduce(
+        (count, requirement) => {
+          return (
+            count +
+            (requirement.findings || [])
+              .filter(
+                (finding) =>
+                  finding.passed === false
+              ).length
+          );
+        },
+        0
       );
-    }).length;
 
-    const approved = requirements.filter(
-      (req) =>
-        req.status?.toLowerCase() === "approved"
-    ).length;
-
-    const rejected = requirements.filter(
-      (req) =>
-        req.status?.toLowerCase() === "rejected"
-    ).length;
-
-    const issues = requirements.reduce(
-      (count, requirement) => {
-        return (
-          count +
-          (requirement.findings || []).filter(
-            (finding) =>
-              finding.passed === false
-          ).length
-        );
-      },
-      0
-    );
-
-    const aiSuggestions = requirements.reduce(
-      (count, requirement) => {
-        return (
-          count +
-          (requirement.findings || []).filter(
-            (finding) =>
-              finding.type === "suggestion" ||
-              finding.category === "suggestion" ||
-              finding.ai_suggestion === true
-          ).length
-        );
-      },
-      0
-    );
+    const aiSuggestions =
+      requirements.reduce(
+        (count, requirement) => {
+          return (
+            count +
+            (requirement.findings || [])
+              .filter(
+                (finding) =>
+                  finding.type ===
+                    "suggestion" ||
+                  finding.category ===
+                    "suggestion" ||
+                  finding.ai_suggestion === true
+              ).length
+          );
+        },
+        0
+      );
 
     return {
       total,
@@ -257,14 +339,10 @@ function RuleEnginePage() {
     <AppShell active="projects">
       <div className="rule-engine-page">
 
-        {/* PROJECT HEADER */}
-
         <RuleEngineHeader
           project={project}
           projectLoading={projectLoading}
         />
-
-        {/* REQUIREMENTS HEADING */}
 
         <section className="rule-engine-heading">
           <div className="rule-engine-heading-icon">
@@ -282,15 +360,9 @@ function RuleEnginePage() {
           </div>
         </section>
 
-        {/* MAIN CONTENT */}
-
         <main className="rule-engine-content">
 
-          {/* STATS */}
-
           <RuleStatsCards stats={stats} />
-
-          {/* LOADING */}
 
           {loading && (
             <div className="rule-state">
@@ -304,8 +376,6 @@ function RuleEnginePage() {
               </p>
             </div>
           )}
-
-          {/* ERROR */}
 
           {!loading && error && (
             <div className="rule-state rule-error">
@@ -321,8 +391,6 @@ function RuleEnginePage() {
             </div>
           )}
 
-          {/* EMPTY */}
-
           {!loading &&
             !error &&
             requirements.length === 0 && (
@@ -334,8 +402,6 @@ function RuleEnginePage() {
               </div>
             )}
 
-          {/* TABLE */}
-
           {!loading &&
             !error &&
             requirements.length > 0 && (
@@ -346,9 +412,8 @@ function RuleEnginePage() {
                 onSelectRule={setSelectedRule}
               />
             )}
-        </main>
 
-        {/* FINDINGS DRAWER */}
+        </main>
 
         {selectedRule && (
           <RuleDetailsModal
@@ -358,6 +423,7 @@ function RuleEnginePage() {
             }
           />
         )}
+
       </div>
     </AppShell>
   );

@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.storage import REQUIREMENT_SOURCES_BUCKET, get_storage_client
@@ -616,7 +616,6 @@ class RequirementService:
         rule_engine_input = []
 
         for req in requirements:
-
             requirement_text = req.get(
                 "current_requirement_text"
             )
@@ -638,74 +637,112 @@ class RequirementService:
             rule_engine_input
         )
 
-        saved_count = 0
+        if not results:
+            await self.db.commit()
+
+            return {
+                "total": 0,
+                "saved": 0,
+                "results": [],
+            }
+
+        # -----------------------------------------------------------
+        # Fetch the latest version for all requirements in ONE query.
+        # -----------------------------------------------------------
+
+        requirement_ids = [
+            UUID(str(result["id"]))
+            for result in results
+        ]
+
+        version_result = await self.db.execute(
+            text(
+                """
+                SELECT DISTINCT ON (requirement_id)
+                    id,
+                    requirement_id,
+                    version_number
+                FROM requirement_versions
+                WHERE requirement_id IN :requirement_ids
+                ORDER BY
+                    requirement_id,
+                    version_number DESC
+                """
+            ).bindparams(
+                bindparam(
+                    "requirement_ids",
+                    expanding=True,
+                )
+            ),
+            {
+                "requirement_ids": requirement_ids,
+            },
+        )
+
+        latest_versions = {
+            row["requirement_id"]: row["id"]
+            for row in version_result.mappings()
+        }
+
+        if not latest_versions:
+            await self.db.commit()
+
+            return {
+                "total": len(results),
+                "saved": 0,
+                "results": results,
+            }
+
+        # -----------------------------------------------------------
+        # Delete all old validation rows in ONE query.
+        # -----------------------------------------------------------
+
+        version_ids = list(
+            latest_versions.values()
+        )
+
+        await self.db.execute(
+            text(
+                """
+                DELETE FROM rule_validation
+                WHERE requirement_version_id IN :version_ids
+                """
+            ).bindparams(
+                bindparam(
+                    "version_ids",
+                    expanding=True,
+                )
+            ),
+            {
+                "version_ids": version_ids,
+            },
+        )
+
+        # -----------------------------------------------------------
+        # Prepare all validation rows in memory.
+        # -----------------------------------------------------------
+
+        validation_rows = []
 
         for result in results:
-
             requirement_id = UUID(
                 str(result["id"])
             )
 
-            version_result = await self.db.execute(
-                text(
-                    """
-                    SELECT id
-                    FROM requirement_versions
-                    WHERE requirement_id = :requirement_id
-                    ORDER BY version_number DESC
-                    LIMIT 1
-                    """
-                ),
-                {
-                    "requirement_id": requirement_id,
-                },
+            requirement_version_id = (
+                latest_versions.get(
+                    requirement_id
+                )
             )
 
-            version_row = version_result.mappings().first()
-
-            if version_row is None:
+            if requirement_version_id is None:
                 continue
 
-            requirement_version_id = version_row["id"]
-
-            # Remove previous validation results for this
-            # version so clicking Analyze again does not create
-            # duplicate rows.
-            await self.db.execute(
-                text(
-                    """
-                    DELETE FROM rule_validation
-                    WHERE requirement_version_id = :version_id
-                    """
-                ),
-                {
-                    "version_id": requirement_version_id,
-                },
-            )
-
-            for finding in result.get("findings", []):
-
-                await self.db.execute(
-                    text(
-                        """
-                        INSERT INTO rule_validation
-                        (
-                            requirement_version_id,
-                            rule_name,
-                            passed,
-                            message,
-                            severity
-                        )
-                        VALUES
-                        (
-                            :requirement_version_id,
-                            :rule_name,
-                            :passed,
-                            :message,
-                            :severity
-                        )
-                        """
-                    ),
+            for finding in result.get(
+                "findings",
+                [],
+            ):
+                validation_rows.append(
                     {
                         "requirement_version_id": (
                             requirement_version_id
@@ -715,7 +752,10 @@ class RequirementService:
                             or "Unknown Rule"
                         ),
                         "passed": bool(
-                            finding.get("passed", False)
+                            finding.get(
+                                "passed",
+                                False,
+                            )
                         ),
                         "message": (
                             finding.get("message")
@@ -727,10 +767,39 @@ class RequirementService:
                         "severity": finding.get(
                             "severity"
                         ),
-                    },
+                    }
                 )
 
-                saved_count += 1
+        # -----------------------------------------------------------
+        # Insert all findings in ONE executemany operation.
+        # -----------------------------------------------------------
+
+        if validation_rows:
+            await self.db.execute(
+                text(
+                    """
+                    INSERT INTO rule_validation
+                    (
+                        requirement_version_id,
+                        rule_name,
+                        passed,
+                        message,
+                        severity
+                    )
+                    VALUES
+                    (
+                        :requirement_version_id,
+                        :rule_name,
+                        :passed,
+                        :message,
+                        :severity
+                    )
+                    """
+                ),
+                validation_rows,
+            )
+
+        saved_count = len(validation_rows)
 
         await self.db.commit()
 
