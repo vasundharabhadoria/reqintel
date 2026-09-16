@@ -1,4 +1,4 @@
-from uuid import UUID
+﻿from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -252,7 +252,7 @@ class RequirementRepository:
             "project_id": project_id
         }
 
-        if status_filter:
+        if status_filter and status_filter.lower() != "all":
             query += " AND r.status = :status"
             params["status"] = status_filter
 
@@ -451,3 +451,80 @@ class RequirementRepository:
         )
 
         return dict(result.mappings().one())
+    async def delete_source_cascade(
+        self,
+        project_id: UUID,
+        source_id: UUID,
+    ) -> None:
+        """
+        Permanently delete a source and everything extracted from it.
+
+        Delete order:
+        rule_validation -> requirement_versions -> requirements -> source
+        This order avoids foreign-key dependency problems.
+        """
+        await self.db.execute(
+            text(
+                """
+                DELETE FROM rule_validation
+                WHERE requirement_version_id IN (
+                    SELECT rv.id
+                    FROM requirement_versions rv
+                    INNER JOIN requirements r
+                        ON r.id = rv.requirement_id
+                    WHERE r.project_id = :project_id
+                      AND r.source_id = :source_id
+                )
+                """
+            ),
+            {
+                "project_id": project_id,
+                "source_id": source_id,
+            },
+        )
+
+        await self.db.execute(
+            text(
+                """
+                DELETE FROM requirement_versions
+                WHERE requirement_id IN (
+                    SELECT id
+                    FROM requirements
+                    WHERE project_id = :project_id
+                      AND source_id = :source_id
+                )
+                """
+            ),
+            {
+                "project_id": project_id,
+                "source_id": source_id,
+            },
+        )
+
+        await self.db.execute(
+            text(
+                """
+                DELETE FROM requirements
+                WHERE project_id = :project_id
+                  AND source_id = :source_id
+                """
+            ),
+            {
+                "project_id": project_id,
+                "source_id": source_id,
+            },
+        )
+
+        await self.db.execute(
+            text(
+                """
+                DELETE FROM requirement_sources
+                WHERE project_id = :project_id
+                  AND id = :source_id
+                """
+            ),
+            {
+                "project_id": project_id,
+                "source_id": source_id,
+            },
+        )

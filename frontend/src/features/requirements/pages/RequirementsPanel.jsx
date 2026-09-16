@@ -9,10 +9,14 @@ import {
   X,
   CheckCircle2,
   Loader2,
+  FileText,
+  FileType,
+  FileCode,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import StatusPill from "../components/StatusPill";
 import {
   listRequirements,
   listSources,
@@ -21,6 +25,31 @@ import {
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import "../styles/requirements.css";
 
+function getFileIcon(filename = "") {
+  const extension = filename.split(".").pop().toLowerCase();
+
+  if (extension === "pdf") {
+    return (
+      <span className="req-file-icon req-file-pdf">
+        <FileText size={18} />
+      </span>
+    );
+  }
+
+  if (extension === "docx" || extension === "doc") {
+    return (
+      <span className="req-file-icon req-file-docx">
+        <FileType size={18} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="req-file-icon req-file-txt">
+      <FileCode size={18} />
+    </span>
+  );
+}
 const STATUS_OPTIONS = [
   "all",
   "pending",
@@ -45,11 +74,31 @@ function RequirementsPanel({
   const [showAnalyzeModal, setShowAnalyzeModal] =
     useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const debouncedSearch = useDebouncedValue(
     searchInput,
     300
   );
+  const totalPages = Math.max(
+    1,
+    Math.ceil(items.length / 6)
+  );
+
+  const pageItems = useMemo(() => {
+    const start = (currentPage - 1) * 6;
+    return items.slice(start, start + 6);
+  }, [items, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const fetchRequirements = useCallback(async () => {
     if (!projectId) {
@@ -183,71 +232,51 @@ function RequirementsPanel({
 
   return (
     <div className="requirements-panel">
-      <div className="workspace-header">
+      <div className="requirements-page-header">
         <div>
           <h2>Requirements</h2>
+          <p>
+            Review and manage all extracted requirements from your project
+            documents.
+          </p>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            alignItems: "center",
-          }}
+        <button
+          type="button"
+          className="btn btn-primary analyze-button"
+          onClick={handleAnalyze}
+          disabled={
+            analyzing ||
+            loading ||
+            items.length === 0
+          }
         >
-          <input
-            type="search"
-            placeholder="Search requirementsâ€¦"
-            value={searchInput}
-            onChange={(e) =>
-              setSearchInput(e.target.value)
-            }
-          />
+          {analyzing ? (
+            <Loader2
+              size={17}
+              className="spin"
+            />
+          ) : (
+            <Sparkles size={17} />
+          )}
 
-          <select
-            value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value)
-            }
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option
-                key={opt}
-                value={opt}
-              >
-                {opt === "all"
-                  ? "All statuses"
-                  : opt}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            className="btn btn-primary analyze-button"
-            onClick={handleAnalyze}
-            disabled={
-              analyzing ||
-              loading ||
-              items.length === 0
-            }
-          >
-            {analyzing ? (
-              <Loader2
-                size={17}
-                className="spin"
-              />
-            ) : (
-              <Sparkles size={17} />
-            )}
-
-            {analyzing
-              ? "Analyzing..."
-              : "Analyze Requirements"}
-          </button>
-        </div>
+          {analyzing
+            ? "Analyzing..."
+            : "Analyze Requirements"}
+        </button>
       </div>
 
+      <div className="requirements-search-row">
+        <input
+          type="search"
+          className="requirements-search-box"
+          placeholder="Search requirements..."
+          value={searchInput}
+          onChange={(e) =>
+            setSearchInput(e.target.value)
+          }
+        />
+      </div>
       {loading && (
         <p className="muted-text">
           Loading requirementsâ€¦
@@ -283,14 +312,14 @@ function RequirementsPanel({
         items.length > 0 && (
           <div className="requirements-table-card">
             <div className="requirements-table-header">
-              <div>Requirement ID</div>
-              <div>Requirement</div>
-              <div>Source Document</div>
-              <div>Status</div>
-            </div>
+  <div>#</div>
+  <div>Requirement ID</div>
+  <div>Requirement</div>
+  <div>Source Document</div>
+</div>
 
             <div className="requirements-table-body">
-              {items.map((req) => {
+              {pageItems.map((req, index) => {
                 const source =
                   sourcesById.get(
                     req.source_id
@@ -307,34 +336,33 @@ function RequirementsPanel({
                       )
                     }
                   >
-                    <div className="requirement-id-cell">
-                      {req.requirement_code}
-                    </div>
+                    <div className="requirement-number-cell">
+  {index + 1}
+</div>
+
+<div className="requirement-id-cell">
+  {req.requirement_code}
+</div>
 
                     <div className="requirement-text-cell">
-                      <strong>
-                        {req.title ||
-                          "Untitled"}
-                      </strong>
-
-                      <p>
-                        {req.current_requirement_text ||
-                          "No requirement text available."}
-                      </p>
-                    </div>
+  <p>
+            {(req.current_requirement_text ||
+              req.title ||
+              "No requirement text available.")
+              .replace(/^[\s•]*REQ-\d+:\s*/i, "")
+              .replace(/^[\s•]+/, "")
+              .trim().replace(/^[^A-Za-z0-9]+/, "")}
+            </p>
+</div>
 
                     <div className="requirement-source-cell">
-                      <span>
-                        {source?.original_filename ||
-                          "Unknown document"}
-                      </span>
-                    </div>
+  {getFileIcon(source?.original_filename)}
 
-                    <div className="requirement-status-cell">
-                      <StatusPill
-                        status={req.status}
-                      />
-                    </div>
+  <span>
+    {source?.original_filename ||
+      "Unknown document"}
+  </span>
+</div>
                   </button>
                 );
               })}
@@ -342,6 +370,87 @@ function RequirementsPanel({
           </div>
         )}
 
+      <div className="requirements-pagination">
+        <div className="requirements-pagination-info">
+          Showing {(currentPage - 1) * 6 + 1} to{" "}
+          {Math.min(currentPage * 6, items.length)} of{" "}
+          {items.length} extracted requirements
+        </div>
+
+        <div className="requirements-pagination-controls">
+          <button
+            type="button"
+            className="pagination-arrow"
+            onClick={() =>
+              setCurrentPage((page) => Math.max(1, page - 1))
+            }
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          {Array.from(
+            { length: Math.min(totalPages, 3) },
+            (_, index) => index + 1
+          ).map((page) => (
+            <button
+              key={page}
+              type="button"
+              className={`pagination-page ${
+                currentPage === page ? "active" : ""
+              }`}
+              onClick={() => setCurrentPage(page)}
+            >
+              {page}
+            </button>
+          ))}
+
+          {totalPages > 4 && (
+            <>
+              <span className="pagination-dots">...</span>
+
+              <button
+                type="button"
+                className={`pagination-page ${
+                  currentPage === totalPages ? "active" : ""
+                }`}
+                onClick={() => setCurrentPage(totalPages)}
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+
+          {totalPages === 4 && (
+            <button
+              type="button"
+              className={`pagination-page ${
+                currentPage === 4 ? "active" : ""
+              }`}
+              onClick={() => setCurrentPage(4)}
+            >
+              4
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="pagination-arrow"
+            onClick={() =>
+              setCurrentPage((page) =>
+                Math.min(totalPages, page + 1)
+              )
+            }
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight size={18} />
+          </button>
+
+          <div className="pagination-page-size">
+            6 / page
+          </div>
+        </div>
+      </div>
       {showAnalyzeModal && (
         <div className="analyze-modal-overlay">
           <div className="analyze-modal">
@@ -435,3 +544,18 @@ function RequirementsPanel({
 }
 
 export default RequirementsPanel;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

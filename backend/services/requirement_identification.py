@@ -37,7 +37,7 @@ class RequirementExtractionStrategy(ABC):
     Strategy interface for turning raw extracted document text into a list
     of candidate requirement statements. The API/service layer depends only
     on this interface, so a future NLP/LLM-backed strategy can replace
-    RuleBasedExtractionStrategy without any change above this module.
+    AIRequirementExtractionStrategy without any change above this module.
     """
 
     @abstractmethod
@@ -58,7 +58,7 @@ def _looks_like_requirement(text_lower: str) -> bool:
     return any(keyword in text_lower for keyword in REQUIREMENT_KEYWORDS)
 
 
-class RuleBasedExtractionStrategy(RequirementExtractionStrategy):
+class AIRequirementExtractionStrategy(RequirementExtractionStrategy):
     """
     Keyword/regex-based requirement identification. This is explicitly
     rule-based, not AI/NLP-powered — do not describe it otherwise in UI

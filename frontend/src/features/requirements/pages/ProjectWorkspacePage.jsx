@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Folder, FileText, GitBranch, History } from "lucide-react";
 
 import AppShell from "../../../components/layout/AppShell";
 import { useAuth } from "../../../hooks/useAuth";
@@ -12,15 +12,6 @@ import RequirementsPanel from "../../requirements/pages/RequirementsPanel";
 import RequirementDetailPanel from "../../requirements/pages/RequirementDetailPanel";
 import "../../projects/styles/projects.css";
 
-function formatDate(isoString) {
-  if (!isoString) return "—";
-  return new Date(isoString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
-}
-
 function ProjectWorkspacePage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -30,7 +21,7 @@ function ProjectWorkspacePage() {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [activeTab, setActiveTab] = useState("sources");
+  const [activeTab, setActiveTab] = useState("documents");
   const [selectedRequirementId, setSelectedRequirementId] = useState(null);
 
   const fetchProject = useCallback(async () => {
@@ -62,9 +53,22 @@ function ProjectWorkspacePage() {
     fetchProject();
   }, [fetchProject]);
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSelectedRequirementId(null);
+
+    if (tab === "overview") {
+      navigate(`/projects/${projectId}`);
+    }
+  };
+
   return (
     <AppShell active="projects">
-      <button type="button" className="btn-link-back" onClick={() => navigate("/projects")}>
+      <button
+        type="button"
+        className="btn-link-back"
+        onClick={() => navigate("/projects")}
+      >
         <ArrowLeft size={16} /> Back to Projects
       </button>
 
@@ -73,7 +77,11 @@ function ProjectWorkspacePage() {
       {!loading && loadError && (
         <div className="table-state table-state-error">
           <p>{loadError}</p>
-          <button type="button" className="btn btn-secondary" onClick={fetchProject}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={fetchProject}
+          >
             Try Again
           </button>
         </div>
@@ -84,52 +92,83 @@ function ProjectWorkspacePage() {
           <div className="workspace-header">
             <div>
               <h1>{project.name}</h1>
-              <p className="page-subtitle">{project.client_name || "No client name set"}</p>
+              <p className="page-subtitle">
+                {project.client_name || "No client name set"}
+              </p>
             </div>
+
             <StatusBadge status={project.status} />
           </div>
 
-          <dl className="workspace-meta">
-            <div>
-              <dt>Project Type</dt>
-              <dd>{project.project_type || "—"}</dd>
-            </div>
-            <div>
-              <dt>Created On</dt>
-              <dd>{formatDate(project.created_at)}</dd>
-            </div>
-            <div>
-              <dt>Last Updated</dt>
-              <dd>{formatDate(project.updated_at)}</dd>
-            </div>
-          </dl>
+          <div className="workspace-tabs">
+  <button
+    type="button"
+    className={`workspace-tab ${
+      activeTab === "overview" ? "active" : ""
+    }`}
+    onClick={() => handleTabChange("overview")}
+  >
+    <LayoutDashboard size={20} />
+    <span>Overview</span>
+  </button>
 
-          <div className="workspace-description">
-            <h2>Description</h2>
-            <p>{project.description || "No description provided."}</p>
-          </div>
+  <button
+    type="button"
+    className={`workspace-tab ${
+      activeTab === "documents" ? "active" : ""
+    }`}
+    onClick={() => handleTabChange("documents")}
+  >
+    <Folder size={20} />
+    <span>Documents</span>
+  </button>
 
-          <div className="req-tabs">
-            <button
-              type="button"
-              className={`req-tab ${activeTab === "sources" ? "active" : ""}`}
-              onClick={() => setActiveTab("sources")}
-            >
-              Documents &amp; Sources
-            </button>
-            <button
-              type="button"
-              className={`req-tab ${activeTab === "requirements" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("requirements");
-                setSelectedRequirementId(null);
-              }}
-            >
-              Requirements
-            </button>
-          </div>
+  <button
+    type="button"
+    className={`workspace-tab ${
+      activeTab === "requirements" ? "active" : ""
+    }`}
+    onClick={() => handleTabChange("requirements")}
+  >
+    <FileText size={20} />
+    <span>Requirements</span>
+  </button>
 
-          {activeTab === "sources" && <SourcesPanel projectId={projectId} />}
+  <button
+    type="button"
+    className={`workspace-tab ${
+      activeTab === "traceability" ? "active" : ""
+    }`}
+    onClick={() => handleTabChange("traceability")}
+  >
+    <GitBranch size={20} />
+    <span>Traceability</span>
+  </button>
+
+  <button
+    type="button"
+    className={`workspace-tab ${
+      activeTab === "versions" ? "active" : ""
+    }`}
+    onClick={() => handleTabChange("versions")}
+  >
+    <History size={20} />
+    <span>Versions</span>
+  </button>
+</div>
+
+          {activeTab === "overview" && (
+            <div className="workspace-overview">
+              <h2>Overview</h2>
+              <p>
+                {project.description || "No description provided."}
+              </p>
+            </div>
+          )}
+
+          {activeTab === "documents" && (
+            <SourcesPanel projectId={projectId} />
+          )}
 
           {activeTab === "requirements" && !selectedRequirementId && (
             <RequirementsPanel
@@ -144,6 +183,20 @@ function ProjectWorkspacePage() {
               requirementId={selectedRequirementId}
               onBack={() => setSelectedRequirementId(null)}
             />
+          )}
+
+          {activeTab === "traceability" && (
+            <div className="workspace-placeholder">
+              <h2>Traceability</h2>
+              <p>Traceability workspace coming soon.</p>
+            </div>
+          )}
+
+          {activeTab === "versions" && (
+            <div className="workspace-placeholder">
+              <h2>Versions</h2>
+              <p>Versions workspace coming soon.</p>
+            </div>
           )}
         </div>
       )}

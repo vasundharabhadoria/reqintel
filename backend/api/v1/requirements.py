@@ -263,3 +263,19 @@ async def list_versions(
         total=len(items),
         items=items,
     )
+@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_source(
+    project_id: UUID,
+    source_id: UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    await service.delete_source(
+        user_id=UUID(current_user.id),
+        project_id=project_id,
+        source_id=source_id,
+    )
+
+    return None

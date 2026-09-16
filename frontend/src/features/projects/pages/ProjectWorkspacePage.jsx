@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ClipboardList } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import AppShell from "../../../components/layout/AppShell";
 import { useAuth } from "../../../hooks/useAuth";
@@ -8,15 +8,6 @@ import { useToast } from "../../../hooks/useToast";
 import { getProject } from "../../../api/projectApi";
 import StatusBadge from "../components/StatusBadge";
 import "../styles/projects.css";
-
-function formatDate(isoString) {
-  if (!isoString) return "—";
-  return new Date(isoString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
-}
 
 function ProjectWorkspacePage() {
   const { projectId } = useParams();
@@ -57,9 +48,27 @@ function ProjectWorkspacePage() {
     fetchProject();
   }, [fetchProject]);
 
+  const goToTab = (tab) => {
+    if (tab === "Overview") {
+      navigate(`/projects/${projectId}`);
+    } else if (tab === "Documents") {
+      navigate(`/projects/${projectId}/documents`);
+    } else if (tab === "Requirements") {
+      navigate(`/projects/${projectId}/requirements`);
+    } else if (tab === "Traceability") {
+      navigate(`/projects/${projectId}/traceability`);
+    } else if (tab === "Versions") {
+      navigate(`/projects/${projectId}/versions`);
+    }
+  };
+
   return (
     <AppShell active="projects">
-      <button type="button" className="btn-link-back" onClick={() => navigate("/projects")}>
+      <button
+        type="button"
+        className="btn-link-back"
+        onClick={() => navigate("/projects")}
+      >
         <ArrowLeft size={16} /> Back to Projects
       </button>
 
@@ -68,7 +77,11 @@ function ProjectWorkspacePage() {
       {!loading && loadError && (
         <div className="table-state table-state-error">
           <p>{loadError}</p>
-          <button type="button" className="btn btn-secondary" onClick={fetchProject}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={fetchProject}
+          >
             Try Again
           </button>
         </div>
@@ -79,39 +92,61 @@ function ProjectWorkspacePage() {
           <div className="workspace-header">
             <div>
               <h1>{project.name}</h1>
-              <p className="page-subtitle">{project.client_name || "No client name set"}</p>
+              <p className="page-subtitle">
+                {project.client_name || "No client name set"}
+              </p>
             </div>
+
             <StatusBadge status={project.status} />
           </div>
 
-          <dl className="workspace-meta">
-            <div>
-              <dt>Project Type</dt>
-              <dd>{project.project_type || "—"}</dd>
-            </div>
-            <div>
-              <dt>Created On</dt>
-              <dd>{formatDate(project.created_at)}</dd>
-            </div>
-            <div>
-              <dt>Last Updated</dt>
-              <dd>{formatDate(project.updated_at)}</dd>
-            </div>
-          </dl>
+          <nav className="workspace-tabs">
+            <button
+              type="button"
+              className="workspace-tab active"
+              onClick={() => goToTab("Overview")}
+            >
+              Overview
+            </button>
 
-          <div className="workspace-description">
-            <h2>Description</h2>
-            <p>{project.description || "No description provided."}</p>
-          </div>
+            <button
+              type="button"
+              className="workspace-tab"
+              onClick={() => goToTab("Documents")}
+            >
+              Documents
+            </button>
 
-          <div className="placeholder-card">
-            <ClipboardList size={20} />
-            <div>
-              <p className="placeholder-title">Requirements workspace coming soon</p>
-              <p className="placeholder-text">
-                Requirement intake, AI analysis, and traceability aren't implemented yet.
-              </p>
-            </div>
+            <button
+              type="button"
+              className="workspace-tab"
+              onClick={() => goToTab("Requirements")}
+            >
+              Requirements
+            </button>
+
+            <button
+              type="button"
+              className="workspace-tab"
+              onClick={() => goToTab("Traceability")}
+            >
+              Traceability
+            </button>
+
+            <button
+              type="button"
+              className="workspace-tab"
+              onClick={() => goToTab("Versions")}
+            >
+              Versions
+            </button>
+          </nav>
+
+          <div className="workspace-overview">
+            <h2>Overview</h2>
+            <p>
+              {project.description || "No description provided."}
+            </p>
           </div>
         </div>
       )}

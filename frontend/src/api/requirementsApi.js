@@ -1,4 +1,4 @@
-import { apiRequest } from "./client";
+﻿import { apiRequest } from "./client";
 
 export function listSources(projectId) {
   return apiRequest(`/api/v1/projects/${projectId}/requirements/sources`, {
@@ -89,3 +89,19 @@ export function analyzeRequirements(projectId) {
     }
   );
 }
+export function deleteSource(projectId, sourceId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/sources/${sourceId}`,
+    { method: "DELETE" }
+  );
+}
+
+
+
+export function getSourceFile(projectId, sourceId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/sources/${sourceId}/file`,
+    { method: "GET", responseType: "blob" }
+  );
+}
+

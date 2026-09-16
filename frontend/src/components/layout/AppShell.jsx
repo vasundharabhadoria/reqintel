@@ -3,11 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Bell,
   ChevronDown,
-  FileText,
   Folder,
   Globe,
   LayoutGrid,
   LogOut,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import {
@@ -32,21 +32,12 @@ const NAV_ITEMS = [
     label: "Dashboard",
     icon: LayoutGrid,
     to: "/dashboard",
-    enabled: true,
   },
   {
     key: "projects",
     label: "Projects",
     icon: Folder,
     to: "/projects",
-    enabled: true,
-  },
-  {
-    key: "requirements",
-    label: "Requirements",
-    icon: FileText,
-    to: "/projects",
-    enabled: true,
   },
 ];
 
@@ -59,7 +50,11 @@ function AppShell({ active, children }) {
     open: profileOpen,
     onOpenChange: setProfileOpen,
     placement: "bottom-end",
-    middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 })],
+    middleware: [
+      offset(8),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+    ],
     whileElementsMounted: autoUpdate,
   });
 
@@ -67,11 +62,8 @@ function AppShell({ active, children }) {
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: "menu" });
 
-  const { getReferenceProps, getFloatingProps } = useInteractions([
-    click,
-    dismiss,
-    role,
-  ]);
+  const { getReferenceProps, getFloatingProps } =
+    useInteractions([click, dismiss, role]);
 
   async function handleLogout() {
     await logout();
@@ -80,34 +72,43 @@ function AppShell({ active, children }) {
 
   return (
     <div className="app-shell">
-      <header className="app-topbar">
-        <div className="app-brand">
-          <span className="app-logo">R</span>
 
-          <span className="app-brand-name">ReqIntel</span>
+      {/* ================= HEADER ================= */}
+      <header className="app-topbar">
+
+        <div className="app-brand">
+          <div className="app-logo">
+            R
+          </div>
+
+          <span className="app-brand-name">
+            Req<span>Intel</span>
+          </span>
 
           <span className="app-badge">
-            <Sparkles size={12} />
+            <Sparkles size={13} />
             AI-POWERED
           </span>
         </div>
 
         <div className="app-topbar-actions">
+
+          {/* Notifications */}
           <button
             type="button"
-            className="icon-button"
+            className="notification-button"
             aria-label="Notifications"
           >
-            <Bell size={18} />
+            <Bell size={21} />
+
+            <span className="notification-count">
+              3
+            </span>
           </button>
 
-          <div className="lang-selector">
-            <Globe size={16} />
-            <span>English</span>
-            <ChevronDown size={14} />
-          </div>
-
+          {/* Profile */}
           <div className="profile-menu">
+
             <button
               type="button"
               ref={refs.setReference}
@@ -118,9 +119,11 @@ function AppShell({ active, children }) {
                 {user?.email?.charAt(0).toUpperCase() || "U"}
               </span>
 
-              <span className="profile-label">Business Analyst</span>
+              <span className="profile-label">
+                Business Analyst
+              </span>
 
-              <ChevronDown size={14} />
+              <ChevronDown size={15} />
             </button>
 
             {profileOpen && (
@@ -141,62 +144,88 @@ function AppShell({ active, children }) {
                     className="profile-dropdown-logout"
                     onClick={handleLogout}
                   >
-                    <LogOut size={14} />
+                    <LogOut size={15} />
                     Logout
                   </button>
                 </div>
               </FloatingPortal>
             )}
           </div>
+
+          {/* Language */}
+          <button
+            type="button"
+            className="lang-selector"
+          >
+            <Globe size={19} />
+            <span>English</span>
+            <ChevronDown size={15} />
+          </button>
+
         </div>
       </header>
 
+      {/* ================= BODY ================= */}
       <div className="app-body">
-        <nav className="app-sidebar">
-          <ul>
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
 
-              return (
-                <li key={item.key}>
-                  <Link
-                    to={item.to}
-                    className={`sidebar-item ${
-                      active === item.key
-                        ? "sidebar-item-active"
-                        : ""
-                    }`}
-                  >
-                    <Icon size={18} />
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        {/* ================= SIDEBAR ================= */}
+        <aside className="app-sidebar">
 
+          <nav className="sidebar-navigation">
+            <ul>
+              {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <li key={item.key}>
+                    <Link
+                      to={item.to}
+                      className={`sidebar-item ${
+                        active === item.key
+                          ? "sidebar-item-active"
+                          : ""
+                      }`}
+                    >
+                      <Icon size={24} />
+                      <span>{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+
+              {/* Settings */}
+              <li>
+                <button
+                  type="button"
+                  className="sidebar-item"
+                  onClick={() => navigate("/settings")}
+                >
+                  <Settings size={24} />
+                  <span>Settings</span>
+                </button>
+              </li>
+            </ul>
+          </nav>
+
+          {/* Logout */}
           <button
             type="button"
             className="sidebar-item sidebar-logout"
             onClick={handleLogout}
           >
-            <LogOut size={18} />
-            Logout
+            <LogOut size={24} />
+            <span>Logout</span>
           </button>
-        </nav>
 
-        <main className="app-content">{children}</main>
+        </aside>
+
+        {/* ================= CONTENT ================= */}
+        <main className="app-content">
+          {children}
+        </main>
+
       </div>
 
-      <footer className="app-footer">
-        <span>
-          © 2026 ReqIntel Technologies. All rights reserved.
-        </span>
-
-        <span>Version 1.0.0</span>
-
-        <span>Your data is secure with us</span>
-      </footer>
     </div>
   );
 }

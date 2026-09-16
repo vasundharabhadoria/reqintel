@@ -1,4 +1,4 @@
-from uuid import UUID
+﻿from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import bindparam, text
@@ -15,7 +15,7 @@ from models.requirement import (
 )
 from services.project_repository import ProjectRepository
 from services.requirement_extraction import ExtractionError, extract_text
-from services.requirement_identification import RuleBasedExtractionStrategy
+from services.ai_requirement_extraction import AIRequirementExtractionStrategy
 from services.requirement_repository import RequirementRepository
 
 
@@ -44,8 +44,7 @@ class RequirementService:
         self.projects = ProjectRepository(db)
         self.repo = RequirementRepository(db)
         self.storage = get_storage_client()
-        self.extraction_strategy = RuleBasedExtractionStrategy()
-
+        self.extraction_strategy = AIRequirementExtractionStrategy()
     async def _require_project(
         self,
         owner_id: UUID,
@@ -479,7 +478,7 @@ class RequirementService:
         for statement in candidate_statements:
             title = (
                 statement[:80]
-                + ("…" if len(statement) > 80 else "")
+                + ("â€¦" if len(statement) > 80 else "")
             )
 
             requirement, _version = (
@@ -876,3 +875,21 @@ class RequirementService:
             RequirementVersionResponse.model_validate(row)
             for row in rows
         ]
+    async def delete_source(
+        self,
+        user_id: UUID,
+        project_id: UUID,
+        source_id: UUID,
+    ) -> None:
+        await self._require_project(user_id, project_id)
+
+        source = await self.repo.get_source(source_id, project_id)
+        if not source:
+            raise ValueError("Source not found")
+
+        await self.repo.delete_source_cascade(
+            project_id=project_id,
+            source_id=source_id,
+        )
+
+        await self.db.commit()

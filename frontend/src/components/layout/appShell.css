@@ -1,104 +1,171 @@
+/* =========================================================
+   REQINTEL - APPLICATION SHELL
+   ========================================================= */
+
 .app-shell {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f4f8fc;
-  font-family: "Segoe UI", Roboto, Arial, sans-serif;
-  color: #1f2937;
+  background: #ffffff;
+  color: #172554;
+  font-family:
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
 }
 
-/* =========================
+/* =========================================================
    TOP HEADER
-   ========================= */
+   ========================================================= */
 
 .app-topbar {
+  height: 90px;
+  min-height: 90px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 72px;
-  padding: 12px 32px;
+
+  padding: 0 28px;
+
   background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e7edf5;
+
   box-sizing: border-box;
 }
 
+/* ---------- Brand ---------- */
+
 .app-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.app-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 9px;
-  background: linear-gradient(
-    135deg,
-    #1c64f2,
-    #0d9488
-  );
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 18px;
-}
-
-.app-brand-name {
-  font-size: 19px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.app-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: rgba(28, 100, 242, 0.1);
-  color: #1c64f2;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.35px;
-}
-
-.app-topbar-actions {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #475569;
-  cursor: pointer;
-}
+.app-logo {
+  width: 48px;
+  height: 48px;
 
-.icon-button:hover {
-  background: #f8fafc;
-}
-
-.lang-selector {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  background: linear-gradient(
+    135deg,
+    #2563eb 0%,
+    #06b6d4 100%
+  );
+
+  color: #ffffff;
+
+  font-size: 28px;
+  font-weight: 800;
+
+  line-height: 1;
+
+  box-shadow:
+    0 4px 10px rgba(37, 99, 235, 0.15);
+}
+
+.app-brand-name {
+  font-size: 27px;
+  font-weight: 750;
+  letter-spacing: -0.7px;
+  color: #0f172a;
+}
+
+.app-brand-name span {
+  color: #2563eb;
+}
+
+/* ---------- AI Badge ---------- */
+
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  margin-left: 20px;
   padding: 9px 13px;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
+
+  border: 1px solid #dbe7ff;
+  border-radius: 8px;
+
+  background: #f4f7ff;
+
+  color: #1554c7;
+
   font-size: 12px;
-  color: #475569;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* =========================================================
+   HEADER ACTIONS
+   ========================================================= */
+
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+/* ---------- Notifications ---------- */
+
+.notification-button {
+  position: relative;
+
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  background: transparent;
+
+  color: #172554;
+
   cursor: pointer;
 }
+
+.notification-button:hover {
+  background: #f5f8fc;
+  border-radius: 50%;
+}
+
+.notification-count {
+  position: absolute;
+
+  top: 1px;
+  right: 1px;
+
+  min-width: 17px;
+  height: 17px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 4px;
+
+  border-radius: 999px;
+
+  background: #ef2020;
+  color: #ffffff;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   PROFILE
+   ========================================================= */
 
 .profile-menu {
   position: relative;
@@ -107,337 +174,426 @@
 .profile-trigger {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 11px 6px 7px;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
+  gap: 10px;
+
+  padding: 5px 4px;
+
+  border: none;
+  background: transparent;
+
+  color: #0f172a;
+
   cursor: pointer;
-  color: #374151;
-  font-size: 12px;
-  font-weight: 600;
+}
+
+.profile-trigger:hover {
+  background: #f8fafc;
+  border-radius: 10px;
 }
 
 .profile-avatar {
-  display: inline-flex;
+  width: 44px;
+  height: 44px;
+
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+
   border-radius: 50%;
-  background: #1c64f2;
-  color: #ffffff;
-  font-size: 12px;
+
+  background: linear-gradient(
+    135deg,
+    #dbeafe,
+    #bfdbfe
+  );
+
+  border: 2px solid #eef4fb;
+
+  color: #1d4ed8;
+
+  font-size: 15px;
   font-weight: 700;
 }
 
-.profile-dropdown {
+.profile-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+}
+
+/* ---------- Language ---------- */
+
+.lang-selector {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 13px 17px;
+
+  border: 1px solid #e5eaf1;
+  border-radius: 9px;
+
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+
+  color: #111827;
+
+  font-size: 14px;
+  font-weight: 500;
+
+  cursor: pointer;
+}
+
+.lang-selector:hover {
+  background: #f8fafc;
+  border-color: #d7e0eb;
+}
+
+/* =========================================================
+   PROFILE DROPDOWN
+   ========================================================= */
+
+.profile-dropdown {
+  min-width: 220px;
+
+  padding: 12px;
+
+  background: #ffffff;
+
+  border: 1px solid #e1e7ef;
   border-radius: 10px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
-  padding: 10px;
-  min-width: 200px;
+
+  box-shadow:
+    0 15px 35px rgba(15, 23, 42, 0.14);
+
   z-index: 1000;
 }
 
 .profile-dropdown-email {
-  margin: 0 0 8px;
-  padding: 0 4px;
+  margin: 0 0 10px;
+  padding: 7px 8px;
+
+  color: #64748b;
+
   font-size: 12px;
-  color: #6b7280;
+
   word-break: break-all;
 }
 
 .profile-dropdown-logout {
+  width: 100%;
+
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px;
+  gap: 9px;
+
+  padding: 10px;
+
   border: none;
-  background: none;
-  border-radius: 6px;
-  cursor: pointer;
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #dc2626;
+
   font-size: 13px;
-  color: #b91c1c;
+
+  cursor: pointer;
 }
 
 .profile-dropdown-logout:hover {
   background: #fef2f2;
 }
 
-/* =========================
-   MAIN WORKSPACE
-   ========================= */
+/* =========================================================
+   MAIN BODY
+   ========================================================= */
 
 .app-body {
   flex: 1;
+
   display: flex;
-  width: calc(100% - 48px);
-  max-width: 1420px;
-  margin: 20px auto;
-  min-height: 650px;
-  overflow: hidden;
+
+  width: 100%;
+  max-width: none;
+
+  margin: 0;
+
+  min-height: calc(100vh - 90px);
+
   background: #ffffff;
-  border: 1px solid #dbe4ee;
-  border-radius: 14px;
-  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+
+  border: none;
+  border-radius: 0;
+
+  overflow: hidden;
+
   box-sizing: border-box;
 }
 
-/* =========================
+/* =========================================================
    SIDEBAR
-   ========================= */
+   ========================================================= */
 
 .app-sidebar {
-  width: 220px;
-  flex-shrink: 0;
+  width: 150px;
+  min-width: 150px;
+
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  align-items: center;
-  padding: 18px 9px;
+  align-items: stretch;
+
+  padding: 24px 10px 22px;
+
   background: #ffffff;
-  border-right: 1px solid #e2e8f0;
+
+  border-right: 1px solid #e7edf5;
+
   box-sizing: border-box;
 }
+
+/* ---------- Navigation ---------- */
 
 .sidebar-navigation {
   width: 100%;
 }
 
-.sidebar-logo {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
-}
-
-.sidebar-logo span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: linear-gradient(
-    135deg,
-    #1c64f2,
-    #0d9488
-  );
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 16px;
-}
-
 .app-sidebar ul {
   list-style: none;
+
   margin: 0;
   padding: 0;
+
   display: flex;
   flex-direction: column;
+
   gap: 7px;
 }
 
+/* ---------- Sidebar Item ---------- */
+
 .sidebar-item {
+  position: relative;
+
+  width: 100%;
+  min-height: 82px;
+
   display: flex;
+  flex-direction: column;
+
   align-items: center;
   justify-content: center;
-  width: 100%;
-  min-height: 48px;
-  padding: 8px 5px;
-  border-radius: 8px;
+
+  gap: 8px;
+
+  padding: 12px 6px;
+
   border: none;
-  background: none;
-  color: #475569;
-  font-size: 11px;
+  border-radius: 0;
+
+  background: transparent;
+
+  color: #172554;
+
+  font-size: 14px;
   font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
+
   text-align: center;
+  text-decoration: none;
+
+  cursor: pointer;
+
   box-sizing: border-box;
-  flex-direction: column;
-  gap: 4px;
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.sidebar-item svg {
+  color: #172554;
+  stroke-width: 1.8;
 }
 
 .sidebar-item:hover {
-  background: #f1f5f9;
+  background: #f5f8ff;
+  color: #1554c7;
 }
+
+.sidebar-item:hover svg {
+  color: #1554c7;
+}
+
+/* ---------- Active Sidebar ---------- */
 
 .sidebar-item-active {
-  background: rgba(28, 100, 242, 0.09);
-  color: #1c64f2;
+  background: #f1f6ff;
+
+  color: #1554c7;
+
   font-weight: 700;
-  border-left: 3px solid #1c64f2;
 }
+
+.sidebar-item-active::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+  bottom: 0;
+
+  width: 4px;
+
+  background: #1554e8;
+
+  border-radius: 0 3px 3px 0;
+}
+
+.sidebar-item-active svg {
+  color: #1554e8;
+  stroke-width: 2.1;
+}
+
+/* ---------- Logout ---------- */
 
 .sidebar-logout {
-  margin-top: 20px;
+  margin-top: auto;
 }
 
-/* =========================
-   CONTENT
-   ========================= */
+.sidebar-logout:hover {
+  color: #dc2626;
+  background: #fff7f7;
+}
+
+.sidebar-logout:hover svg {
+  color: #dc2626;
+}
+
+/* =========================================================
+   MAIN CONTENT
+   ========================================================= */
 
 .app-content {
   flex: 1;
+
   min-width: 0;
-  padding: 28px 30px;
-  background: #f8fafc;
+
+  padding: 0;
+
+  background: #ffffff;
+
   box-sizing: border-box;
 }
 
-/* =========================
+/* =========================================================
    FOOTER
-   ========================= */
+   ========================================================= */
 
 .app-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 32px;
-  border-top: 1px solid #e2e8f0;
-  background: #ffffff;
-  font-size: 11px;
-  color: #64748b;
-  flex-wrap: wrap;
-  gap: 8px;
-  box-sizing: border-box;
+  display: none;
 }
 
-/* =========================
+/* =========================================================
    RESPONSIVE
-   ========================= */
+   ========================================================= */
 
-@media (max-width: 1200px) {
-  .app-body {
-    width: calc(100% - 32px);
-  }
-
-  .app-content {
-    padding: 24px;
-  }
-}
-
-@media (max-width: 900px) {
-  .app-body {
-    flex-direction: column;
-    min-height: auto;
+@media (max-width: 1100px) {
+  .app-topbar {
+    padding: 0 20px;
   }
 
   .app-sidebar {
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    border-right: none;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  .sidebar-navigation {
-    display: flex;
-    align-items: center;
-    width: auto;
-  }
-
-  .sidebar-logo {
-    margin: 0 15px 0 0;
-  }
-
-  .app-sidebar ul {
-    flex-direction: row;
-  }
-
-  .sidebar-item {
-    width: auto;
-    min-width: 75px;
-  }
-
-  .sidebar-logout {
-    margin-top: 0;
-    width: auto;
-  }
-}
-
-@media (max-width: 650px) {
-  .app-topbar {
-    padding: 12px 16px;
-  }
-
-  .app-brand-name {
-    font-size: 16px;
-  }
-
-  .app-badge {
-    display: none;
+    width: 120px;
+    min-width: 120px;
   }
 
   .profile-label {
     display: none;
   }
 
+  .app-badge {
+    margin-left: 10px;
+  }
+}
+
+@media (max-width: 800px) {
+  .app-topbar {
+    height: 72px;
+    min-height: 72px;
+  }
+
+  .app-brand-name {
+    font-size: 21px;
+  }
+
+  .app-logo {
+    width: 40px;
+    height: 40px;
+    font-size: 23px;
+  }
+
+  .app-badge {
+    display: none;
+  }
+
+  .lang-selector span {
+    display: none;
+  }
+
+  .lang-selector {
+    padding: 10px;
+  }
+
   .app-body {
-    width: calc(100% - 20px);
-    margin: 10px auto;
-    border-radius: 10px;
+    min-height: calc(100vh - 72px);
   }
 
-  .app-content {
-    padding: 18px 14px;
+  .app-sidebar {
+    width: 82px;
+    min-width: 82px;
+
+    padding: 15px 6px;
   }
 
-  .app-footer {
-    padding: 12px 16px;
+  .sidebar-item {
+    min-height: 68px;
+    font-size: 11px;
   }
 }
 
-/* UI: expanded sidebar navigation */
-.app-sidebar {
-  align-items: stretch;
-}
+@media (max-width: 550px) {
+  .app-topbar {
+    padding: 0 12px;
+  }
 
-.sidebar-item {
-  flex-direction: row;
-  justify-content: flex-start;
-  text-align: left;
-  padding: 10px 14px;
-  gap: 12px;
-  min-height: 46px;
-}
+  .app-topbar-actions {
+    gap: 6px;
+  }
 
-.sidebar-item-active {
-  border-left: 3px solid #1c64f2;
-  padding-left: 11px;
-}
+  .notification-button {
+    width: 36px;
+    height: 36px;
+  }
 
-/* UI: sidebar polish */
-.app-sidebar {
-  width: 210px;
-  padding: 20px 12px;
-}
+  .profile-avatar {
+    width: 36px;
+    height: 36px;
+  }
 
-.app-sidebar ul {
-  gap: 4px;
-}
+  .app-sidebar {
+    width: 70px;
+    min-width: 70px;
+  }
 
-.sidebar-item {
-  min-height: 42px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-}
+  .sidebar-item {
+    font-size: 10px;
+    gap: 5px;
+  }
 
-.sidebar-item-active {
-  background: rgba(28, 100, 242, 0.10);
-  color: #1c64f2;
-  font-weight: 700;
-  border-left: 3px solid #1c64f2;
-  padding-left: 9px;
-}
-
-.sidebar-item:hover {
-  background: #f1f5f9;
+  .sidebar-item svg {
+    width: 20px;
+    height: 20px;
+  }
 }
