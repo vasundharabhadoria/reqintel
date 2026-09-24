@@ -6,67 +6,58 @@ import {
   AlertTriangle,
   FileText,
   ExternalLink,
+  Copy,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import StatusPill from "../../requirements/components/StatusPill";
 
 function RuleDetailsModal({ requirement, onClose }) {
   const [expandedFinding, setExpandedFinding] = useState(null);
+  const [copied, setCopied] = useState(false);
 
-  const findings = requirement.findings || [];
+  const findings = Array.isArray(requirement?.findings)
+    ? requirement.findings
+    : [];
 
   const sourceDocument =
-    requirement.source_document_name || "—";
+    requirement?.source_document_name || "—";
 
   const sourceDocumentUrl =
-    requirement.source_document_url || null;
+    requirement?.source_document_url || null;
 
-  const getFileExtension = (filename) => {
-    if (!filename || filename === "—") return "";
+  const requirementText =
+    requirement?.current_requirement_text ||
+    requirement?.requirement_text ||
+    requirement?.text ||
+    "—";
+
+  const getFileExtension = (filename = "") => {
+    if (!filename || typeof filename !== "string") {
+      return "";
+    }
 
     const parts = filename.split(".");
 
-    return parts.length > 1
-      ? parts[parts.length - 1].toLowerCase()
-      : "";
+    if (parts.length < 2) {
+      return "";
+    }
+
+    return parts[parts.length - 1].toUpperCase();
   };
 
-  const fileExtension =
-    getFileExtension(sourceDocument);
-
   const getFileTypeLabel = () => {
-    switch (fileExtension) {
-      case "pdf":
-        return "PDF";
+    const extension = getFileExtension(sourceDocument);
 
-      case "doc":
-      case "docx":
-        return "Word";
-
-      case "txt":
-        return "Text";
-
-      case "xls":
-      case "xlsx":
-        return "Excel";
-
-      case "ppt":
-      case "pptx":
-        return "PowerPoint";
-
-      default:
-        return fileExtension
-          ? fileExtension.toUpperCase()
-          : "Document";
+    if (!extension) {
+      return "";
     }
+
+    return extension;
   };
 
   const openSourceDocument = () => {
     if (!sourceDocumentUrl) {
-      console.warn(
-        "No source document URL available:",
-        requirement
-      );
-
       return;
     }
 
@@ -83,6 +74,158 @@ function RuleDetailsModal({ requirement, onClose }) {
     );
   };
 
+  const copyRequirement = async () => {
+    if (!requirementText || requirementText === "—") {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(requirementText);
+
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const getSeverityClass = (severity) => {
+    const value = String(severity || "Low").toLowerCase();
+
+    if (value === "high") {
+      return "rule-severity high";
+    }
+
+    if (value === "medium") {
+      return "rule-severity medium";
+    }
+
+    return "rule-severity low";
+  };
+
+  const getFindingSeverity = (finding) => {
+    if (finding?.severity) {
+      return finding.severity;
+    }
+
+    const matchedRules =
+      finding?.matched_rules ||
+      finding?.rules ||
+      [];
+
+    if (!matchedRules.length) {
+      return finding?.passed ? "Low" : "High";
+    }
+
+    const severities = matchedRules.map(
+      (rule) =>
+        String(rule?.severity || "Low").toLowerCase()
+    );
+
+    if (severities.includes("high")) {
+      return "High";
+    }
+
+    if (severities.includes("medium")) {
+      return "Medium";
+    }
+
+    return "Low";
+  };
+
+  const getMatchedRules = (finding) => {
+    const rules =
+      finding?.matched_rules ||
+      finding?.rules ||
+      [];
+
+    if (!Array.isArray(rules)) {
+      return [];
+    }
+
+    return rules;
+  };
+
+  const getFindingTitle = (finding) => {
+    return (
+      finding?.category ||
+      finding?.rule_name ||
+      "Rule Check"
+    );
+  };
+
+  const getFindingDescription = (finding) => {
+    return (
+      finding?.description ||
+      finding?.message ||
+      "No description available."
+    );
+  };
+
+  const getFindingWhyItMatters = (finding) => {
+    return (
+      finding?.why_it_matters ||
+      finding?.whyItMatters ||
+      "No additional information available."
+    );
+  };
+
+  const getFindingRecommendation = (finding) => {
+    return (
+      finding?.recommendation ||
+      "No recommendation is available."
+    );
+  };
+
+  const getRuleName = (rule) => {
+    if (typeof rule === "string") {
+      return rule;
+    }
+
+    return (
+      rule?.rule_name ||
+      rule?.rule ||
+      rule?.name ||
+      "Configured rule"
+    );
+  };
+
+  const getRuleDescription = (rule) => {
+    return (
+      rule?.description ||
+      "This rule matched the requirement."
+    );
+  };
+
+  const getRuleWhyItMatters = (rule) => {
+    return (
+      rule?.why_it_matters ||
+      rule?.whyItMatters ||
+      ""
+    );
+  };
+
+  const getRuleRecommendation = (rule) => {
+    return (
+      rule?.recommendation ||
+      ""
+    );
+  };
+
+  const getRuleSeverity = (rule) => {
+    return rule?.severity || "Low";
+  };
+
+  const aiSuggestions = findings.filter(
+    (finding) =>
+      finding?.type === "suggestion" ||
+      finding?.category === "suggestion" ||
+      finding?.ai_suggestion === true
+  );
+
   return (
     <div
       className="rule-drawer-overlay"
@@ -94,11 +237,15 @@ function RuleDetailsModal({ requirement, onClose }) {
           event.stopPropagation()
         }
       >
-        {/* DRAWER HEADER */}
+        {/* HEADER */}
 
-        <div className="rule-drawer-header">
-          <div className="rule-drawer-title-area">
+        <header className="rule-drawer-header">
+          <div>
             <h2>Requirement Details</h2>
+
+            <p>
+              Review requirement validation findings
+            </p>
           </div>
 
           <button
@@ -107,207 +254,445 @@ function RuleDetailsModal({ requirement, onClose }) {
             onClick={onClose}
             aria-label="Close"
           >
-            <X size={22} />
+            <X size={21} />
           </button>
-        </div>
+        </header>
 
-        <div className="rule-drawer-body">
+        {/* SCROLLABLE CONTENT */}
 
-          {/* REQUIREMENT ID + STATUS */}
+        <div className="rule-drawer-content">
 
-          <div className="rule-drawer-requirement-top">
-            <span className="rule-drawer-code">
-              {requirement.requirement_code}
-            </span>
+          {/* REQUIREMENT META */}
 
-            <StatusPill
-              status={
-                requirement.status || "pending"
-              }
-            />
-          </div>
+         <section className="requirement-meta">
+  <strong className="requirement-meta-id">
+    {requirement?.requirement_code ||
+      requirement?.code ||
+      "—"}
+  </strong>
+
+  <span
+    className={`requirement-status-badge ${
+      String(requirement?.status || "pending")
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+    }`}
+  >
+    {String(requirement?.status || "pending").toLowerCase() === "pending"
+      ? "Pending Review"
+      : requirement?.status || "Pending Review"}
+  </span>
+</section>
 
           {/* SOURCE DOCUMENT */}
 
-          <section className="rule-drawer-section rule-source-section">
-            <h3>Source Document</h3>
+          <section className="drawer-section">
+            <div className="drawer-section-title">
+              <FileText size={17} />
 
-            <button
-              type="button"
-              className={`rule-drawer-source-document ${
-                sourceDocumentUrl
-                  ? "clickable"
-                  : "disabled"
-              }`}
-              onClick={openSourceDocument}
-              disabled={!sourceDocumentUrl}
-              title={
-                sourceDocumentUrl
-                  ? "Open source document"
-                  : "Source document URL is not available"
-              }
-            >
-              <div className="rule-drawer-source-info">
+              <span>Source Document</span>
+            </div>
 
-                <div
-                  className={`rule-drawer-file-icon file-${fileExtension}`}
-                >
-                  <FileText size={19} />
+            <div className="source-document-card">
+              <div className="source-document-info">
+                <div className="source-file-icon">
+                  <FileText size={18} />
                 </div>
 
-                <div className="rule-drawer-file-details">
-
-                  <span className="rule-drawer-file-name">
+                <div className="source-file-name">
+                  <strong>
                     {sourceDocument}
-                  </span>
+                  </strong>
 
-                  <span className="rule-drawer-file-type">
-                    {getFileTypeLabel()}
-                  </span>
-
+                  {getFileTypeLabel() && (
+                    <span>
+                      {getFileTypeLabel()}
+                    </span>
+                  )}
                 </div>
-
-                {sourceDocumentUrl && (
-                  <ExternalLink
-                    size={17}
-                    className="rule-drawer-source-open-icon"
-                  />
-                )}
-
               </div>
-            </button>
+
+              {sourceDocumentUrl && (
+                <button
+                  type="button"
+                  className="source-open-button"
+                  onClick={openSourceDocument}
+                >
+                  <span>Open</span>
+                  <ExternalLink size={15} />
+                </button>
+              )}
+            </div>
           </section>
 
           {/* REQUIREMENT */}
 
-          <section className="rule-drawer-section">
-            <h3>Requirement</h3>
+          <section className="drawer-section">
+            <div className="drawer-section-title requirement-title">
+              <FileText size={17} />
 
-            <p>
-              {requirement.current_requirement_text ||
-                "No requirement text available."}
-            </p>
+              <span>Requirement</span>
+            </div>
+
+            <div className="requirement-text-card">
+              <p>{requirementText}</p>
+
+              <button
+                type="button"
+                className="copy-requirement-button"
+                onClick={copyRequirement}
+                title="Copy requirement"
+              >
+                {copied ? (
+                  <Check size={17} />
+                ) : (
+                  <Copy size={17} />
+                )}
+              </button>
+            </div>
           </section>
 
           {/* RULE ENGINE FINDINGS */}
 
-          <section className="rule-drawer-section">
-            <div className="rule-findings-heading">
+          <section className="drawer-section findings-section">
+            <div className="findings-heading">
               <div>
                 <h3>Rule Engine Findings</h3>
 
                 <p>
-                  {findings.length} checks evaluated
+                  {findings.length}{" "}
+                  {findings.length === 1
+                    ? "validation check"
+                    : "validation checks"}{" "}
+                  displayed
                 </p>
               </div>
+
+              <span className="findings-count">
+                {findings.length} Checks
+              </span>
             </div>
 
-            <div className="rule-findings-list">
+            <div className="findings-list">
 
               {findings.length === 0 && (
-                <div className="rule-no-findings">
-                  No rule engine findings available.
+                <div className="no-findings">
+                  No validation findings are available.
                 </div>
               )}
 
-              {findings.map((finding, index) => {
-                const isExpanded =
-                  expandedFinding === index;
+              {findings.map(
+                (finding, index) => {
+                  const passed =
+                    finding?.passed !== false;
 
-                const passed =
-                  finding.passed === true;
+                  const expanded =
+                    expandedFinding === index;
 
-                return (
-                  <div
-                    className={`rule-finding ${
-                      passed
-                        ? "passed"
-                        : "failed"
-                    }`}
-                    key={`${finding.rule_name}-${index}`}
-                  >
-                    <button
-                      type="button"
-                      className="rule-finding-header"
-                      onClick={() =>
-                        toggleFinding(index)
-                      }
+                  const matchedRules =
+                    getMatchedRules(finding);
+
+                  const severity =
+                    getFindingSeverity(finding);
+
+                  return (
+                    <article
+                      key={`${getFindingTitle(
+                        finding
+                      )}-${index}`}
+                      className={`rule-finding ${
+                        passed
+                          ? "passed"
+                          : "failed"
+                      }`}
                     >
-                      <div className="rule-finding-title">
-
-                        {passed ? (
-                          <CheckCircle2 size={18} />
-                        ) : (
-                          <AlertTriangle size={18} />
-                        )}
-
-                        <span>
-                          {finding.rule_name}
-                        </span>
-
-                      </div>
-
-                      <ChevronDown
-                        size={18}
-                        className={
-                          isExpanded
-                            ? "finding-chevron expanded"
-                            : "finding-chevron"
+                      <button
+                        type="button"
+                        className="rule-finding-header"
+                        onClick={() =>
+                          toggleFinding(index)
                         }
-                      />
-                    </button>
+                      >
+                        <div className="finding-title-group">
 
-                    {isExpanded && (
-                      <div className="rule-finding-content">
+                          <span
+                            className={`finding-status-icon ${
+                              passed
+                                ? "success"
+                                : "error"
+                            }`}
+                          >
+                            {passed ? (
+                              <CheckCircle2
+                                size={18}
+                              />
+                            ) : (
+                              <AlertTriangle
+                                size={18}
+                              />
+                            )}
+                          </span>
 
-                        <div className="finding-detail">
-                          <span>Status</span>
+                          <span className="finding-title">
+                            {getFindingTitle(
+                              finding
+                            )}
+                          </span>
 
-                          <strong>
-                            {passed
-                              ? "Passed"
-                              : "Failed"}
-                          </strong>
+                          <span
+                            className={getSeverityClass(
+                              severity
+                            )}
+                          >
+                            {severity}
+                          </span>
                         </div>
 
-                        <div className="finding-detail">
-                          <span>Description</span>
+                        <ChevronDown
+                          size={18}
+                          className={
+                            expanded
+                              ? "finding-chevron open"
+                              : "finding-chevron"
+                          }
+                        />
+                      </button>
 
-                          <p>
-                            {finding.description ||
-                              finding.message ||
-                              "No description available."}
-                          </p>
+                      {expanded && (
+                        <div className="rule-finding-body">
+
+                          <div className="finding-row">
+                            <span className="finding-label">
+                              Status
+                            </span>
+
+                            <span
+                              className={`finding-status ${
+                                passed
+                                  ? "passed"
+                                  : "failed"
+                              }`}
+                            >
+                              {passed
+                                ? "Passed"
+                                : "Failed"}
+                            </span>
+                          </div>
+
+                          {/* MATCHED RULES */}
+
+                          {matchedRules.length >
+                            0 && (
+                            <div className="matched-rules-section">
+                              <span className="finding-label">
+                                Matched Rules
+                              </span>
+
+                              <div className="matched-rules-list">
+                                {matchedRules.map(
+                                  (
+                                    rule,
+                                    ruleIndex
+                                  ) => (
+                                    <div
+                                      className="matched-rule-card"
+                                      key={`${getRuleName(
+                                        rule
+                                      )}-${ruleIndex}`}
+                                    >
+                                      <div className="matched-rule-top">
+                                        <div className="matched-rule-name">
+                                          <span className="matched-rule-dot" />
+
+                                          <strong>
+                                            {getRuleName(
+                                              rule
+                                            )}
+                                          </strong>
+                                        </div>
+
+                                        <span
+                                          className={getSeverityClass(
+                                            getRuleSeverity(
+                                              rule
+                                            )
+                                          )}
+                                        >
+                                          {getRuleSeverity(
+                                            rule
+                                          )}
+                                        </span>
+                                      </div>
+
+                                      {getRuleDescription(
+                                        rule
+                                      ) && (
+                                        <p>
+                                          {
+                                            getRuleDescription(
+                                              rule
+                                            )
+                                          }
+                                        </p>
+                                      )}
+
+                                      {getRuleWhyItMatters(
+                                        rule
+                                      ) && (
+                                        <div className="matched-rule-detail">
+                                          <span>
+                                            Why it matters
+                                          </span>
+
+                                          <p>
+                                            {
+                                              getRuleWhyItMatters(
+                                                rule
+                                              )
+                                            }
+                                          </p>
+                                        </div>
+                                      )}
+
+                                      {getRuleRecommendation(
+                                        rule
+                                      ) && (
+                                        <div className="matched-rule-detail">
+                                          <span>
+                                            Recommendation
+                                          </span>
+
+                                          <p>
+                                            {
+                                              getRuleRecommendation(
+                                                rule
+                                              )
+                                            }
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* CATEGORY DESCRIPTION */}
+
+                          <div className="finding-detail">
+                            <span className="finding-label">
+                              Description
+                            </span>
+
+                            <p>
+                              {getFindingDescription(
+                                finding
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="finding-detail">
+                            <span className="finding-label">
+                              Why it matters
+                            </span>
+
+                            <p>
+                              {getFindingWhyItMatters(
+                                finding
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="finding-detail">
+                            <span className="finding-label">
+                              Recommendation
+                            </span>
+
+                            <p>
+                              {getFindingRecommendation(
+                                finding
+                              )}
+                            </p>
+                          </div>
                         </div>
-
-                        <div className="finding-detail">
-                          <span>Why it matters</span>
-
-                          <p>
-                            {finding.why_it_matters ||
-                              "No additional information available."}
-                          </p>
-                        </div>
-
-                        <div className="finding-detail">
-                          <span>Recommendation</span>
-
-                          <p>
-                            {finding.recommendation ||
-                              "No recommendation available."}
-                          </p>
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
+                      )}
+                    </article>
+                  );
+                }
+              )}
             </div>
           </section>
 
+          {/* AI SUGGESTIONS */}
+
+          {aiSuggestions.length > 0 && (
+            <section className="drawer-section ai-suggestions-section">
+
+              <div className="findings-heading">
+                <div>
+                  <div className="ai-heading">
+                    <Sparkles size={17} />
+
+                    <h3>
+                      AI Suggestions
+                    </h3>
+                  </div>
+                </div>
+
+                <span className="findings-count">
+                  {aiSuggestions.length}{" "}
+                  {aiSuggestions.length === 1
+                    ? "Suggestion"
+                    : "Suggestions"}
+                </span>
+              </div>
+
+              <div className="ai-suggestions-list">
+                {aiSuggestions.map(
+                  (suggestion, index) => (
+                    <div
+                      className="ai-suggestion-card"
+                      key={index}
+                    >
+                      <div className="ai-suggestion-icon">
+                        <Sparkles size={17} />
+                      </div>
+
+                      <div className="ai-suggestion-content">
+                        <p>
+                          {suggestion.message ||
+                            suggestion.description ||
+                            suggestion.suggestion ||
+                            "AI recommendation available."}
+                        </p>
+
+                        <div className="ai-suggestion-actions">
+                          <button
+                            type="button"
+                            className="suggestion-accept"
+                          >
+                            <ThumbsUp size={14} />
+                            Accept
+                          </button>
+
+                          <button
+                            type="button"
+                            className="suggestion-reject"
+                          >
+                            <ThumbsDown size={14} />
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            </section>
+          )}
         </div>
+
       </aside>
     </div>
   );

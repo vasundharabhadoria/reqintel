@@ -1,4 +1,4 @@
-﻿from uuid import UUID
+﻿from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import bindparam, text
@@ -467,42 +467,69 @@ class RequirementService:
                 ),
             )
 
-        candidate_statements = (
-            self.extraction_strategy.identify(
+        extraction_result = (
+            self.extraction_strategy.identify_structured(
                 source["raw_text"]
             )
         )
+        print(
+            f"[DB SAVE] Starting save of "
+            f"{len(extraction_result.requirements)} requirements"
+        )
 
-        created: list[RequirementResponse] = []
+        candidate_statements = [
+            requirement.text
+            for requirement in extraction_result.requirements
+        ]
 
-        for statement in candidate_statements:
-            title = (
-                statement[:80]
-                + ("â€¦" if len(statement) > 80 else "")
-            )
+        print(
+            f"[DB SAVE] Batch saving {len(candidate_statements)} requirements"
+        )
 
-            requirement, _version = (
-                await self._create_requirement_with_version(
-                    project_id=project_id,
-                    source_id=source_id,
-                    title=title,
-                    requirement_text=statement,
-                    created_by=owner_id,
-                )
-            )
+        batch_rows = [
+            {
+                "id": uuid4(),
+                "version_id": uuid4(),
+                "title": (
+                    statement[:80]
+                    + ("…" if len(statement) > 80 else "")
+                ),
+                "requirement_text": statement,
+            }
+            for statement in candidate_statements
+        ]
 
-            created.append(
-                await self.get_requirement(
-                    owner_id,
-                    project_id,
-                    requirement["id"],
-                )
-            )
+        created_rows = await self.repo.create_requirements_with_versions_batch(
+            project_id=project_id,
+            source_id=source_id,
+            requirements=batch_rows,
+            created_by=owner_id,
+        )
+
+        created_ids = {row["id"] for row in created_rows}
+
+        current_rows = await self.repo.list_requirements(
+            project_id,
+            None,
+            None,
+            source_id,
+        )
+
+        created = [
+            RequirementResponse.model_validate(row)
+            for row in current_rows
+            if row["id"] in created_ids
+        ]
+
+        print(
+            f"[DB SAVE] Batch save complete: {len(created)} requirements"
+        )
 
         return ExtractedRequirementSummary(
             requirements_created=len(created),
             items=created,
-        )
+            is_srs=extraction_result.is_srs,
+   )
 
     async def _create_requirement_with_version(
         self,

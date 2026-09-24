@@ -227,10 +227,17 @@ function SourcesPanel({ projectId }) {
         sourceId
       );
 
+     if (result?.is_srs === false) {
       showToast(
+        "This document does not appear to be an SRS. No requirements were extracted.",
+        "error"
+        );
+     } else {
+       showToast(
         `${result?.requirements_created || 0} requirement(s) extracted successfully.`,
         "success"
-      );
+       );
+       }
 
       await fetchSources();
     } catch (err) {

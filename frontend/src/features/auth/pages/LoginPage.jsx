@@ -32,7 +32,7 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const currentUser = await login(email, password);
 
       if (rememberMe) {
         localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
@@ -40,7 +40,11 @@ function LoginPage() {
         localStorage.removeItem(REMEMBERED_EMAIL_KEY);
       }
 
-      navigate("/dashboard");
+      if (currentUser.role === "admin") {
+        navigate("/master-module");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -52,7 +56,9 @@ function LoginPage() {
     <AuthLayout>
       <div className="auth-card">
         <h1>Welcome Back!</h1>
-        <p className="auth-card-subtitle">Login to your account to continue</p>
+        <p className="auth-card-subtitle">
+          Login to your account to continue
+        </p>
 
         {error && (
           <div className="auth-error-box">
@@ -116,7 +122,11 @@ function LoginPage() {
             </p>
           )}
 
-          <button type="submit" className="auth-submit-button" disabled={loading}>
+          <button
+            type="submit"
+            className="auth-submit-button"
+            disabled={loading}
+          >
             {loading ? (
               "Signing in..."
             ) : (
@@ -134,9 +144,9 @@ function LoginPage() {
           className="auth-oauth-button"
           disabled
           title="Google sign-in coming soon"
-      >
-        <span className="auth-google-icon">G</span>
-            Continue with Google
+        >
+          <span className="auth-google-icon">G</span>
+          Continue with Google
         </button>
 
         <p className="auth-footer">

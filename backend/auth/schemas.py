@@ -29,3 +29,4 @@ class UserResponse(BaseModel):
 
     id: str
     email: EmailStr
+    role: str = "business_analyst"

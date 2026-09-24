@@ -91,3 +91,4 @@ class ExtractedRequirementSummary(BaseModel):
 
     requirements_created: int
     items: list[RequirementResponse]
+    is_srs: bool = True

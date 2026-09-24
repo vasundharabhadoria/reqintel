@@ -2,6 +2,9 @@ import json
 import os
 import re
 import time
+import urllib.request
+import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
 from dotenv import load_dotenv
@@ -33,7 +36,7 @@ class RequirementExtractionResult(BaseModel):
 
 class AIRequirementExtractionStrategy:
 
-    MODEL = "qwen/qwen3.8-27b"
+    MODEL = "openai/gpt-oss-20b"
 
     def __init__(self):
         token = os.getenv("GROQ_API_KEY")
@@ -42,6 +45,9 @@ class AIRequirementExtractionStrategy:
             raise ValueError("GROQ_API_KEY is not configured in .env")
 
         self.client = Groq(api_key=token)
+        # Free fallback provider used when Groq quota is exhausted.
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        self.openrouter_model = os.getenv("OPENROUTER_MODEL", "openrouter/free")
 
     # ---------------------------------------------------------
     # MAIN EXTRACTION
@@ -64,22 +70,33 @@ class AIRequirementExtractionStrategy:
 
         extraction_start = time.perf_counter()
 
-        # Document-level classification.
-        sample = content[:12000]
+               # Fast local SRS detection — no AI/API call.
+        srs_keywords = (
+            "software requirements specification",
+            "system requirements specification",
+            "functional requirements",
+            "non-functional requirements",
+            "functional requirement",
+            "non-functional requirement",
+            "requirements specification",
+            "requirement specification",
+        )
 
-        if not self._is_srs_document(sample):
-            print("[AI Extraction] Document classified as NOT SRS.")
+        sample = content[:20000].lower()
+
+        if not any(keyword in sample for keyword in srs_keywords):
+            print("[AI Extraction] Document does not appear to be an SRS.")
 
             return RequirementExtractionResult(
                 is_srs=False,
                 requirements=[],
             )
 
-        print("[AI Extraction] Document classified as SRS.")
+        print("[AI Extraction] Document accepted as SRS.")
 
         chunks = self._split_into_chunks(
             content,
-            max_chars=9000,
+            max_chars=6000,
         )
 
         all_requirements: list[ExtractedRequirement] = []
@@ -88,7 +105,12 @@ class AIRequirementExtractionStrategy:
             f"[AI Extraction] Number of chunks: {len(chunks)}"
         )
 
-        for index, chunk in enumerate(chunks, start=1):
+        # -----------------------------------------------------
+        # PROCESS CHUNKS IN PARALLEL
+        # -----------------------------------------------------
+
+        def process_chunk(args):
+            index, chunk = args
 
             print(
                 f"[AI Extraction] Processing chunk "
@@ -96,21 +118,31 @@ class AIRequirementExtractionStrategy:
                 f"({len(chunk)} chars)"
             )
 
-            result = self._process_chunk(
+            return index, self._process_chunk(
                 chunk=chunk,
                 chunk_number=index,
             )
 
-            if result is None:
-                print(
-                    f"[AI Extraction] Skipping failed chunk "
-                    f"{index}/{len(chunks)}"
-                )
-                continue
+        with ThreadPoolExecutor(max_workers=3) as executor:
 
-            all_requirements.extend(
-                result.requirements
+            results = executor.map(
+                process_chunk,
+                enumerate(chunks, start=1),
             )
+
+            failed_chunks: list[int] = []
+
+            for index, result in results:
+
+                if result is None:
+                    print(
+                        f"[AI Extraction] Chunk {index}/{len(chunks)} failed. "
+                        "Continuing with successful chunks."
+                    )
+                    failed_chunks.append(index)
+                    continue
+
+                all_requirements.extend(result.requirements)
 
         total_time = time.perf_counter() - extraction_start
 
@@ -184,6 +216,16 @@ class AIRequirementExtractionStrategy:
             f"[AI Extraction] Total extraction time: "
             f"{total_time:.2f} seconds"
         )
+        if failed_chunks:
+            print(
+                f"[AI Extraction] Warning: failed chunks: {failed_chunks}. "
+                f"Using {len(chunks) - len(failed_chunks)}/{len(chunks)} successful chunks."
+            )
+
+        if not unique_requirements:
+            raise RuntimeError(
+                "Requirement extraction failed: no requirements were extracted."
+            )
 
         return RequirementExtractionResult(
             is_srs=True,
@@ -258,13 +300,11 @@ DOCUMENT SAMPLE:
                     }
                 ],
                 temperature=0,
-                max_tokens=900,
-                response_format={
-                    "type": "json_object"
-                },
+                max_completion_tokens=2048,
+reasoning_effort="low",
+include_reasoning=False,
+             
             )
-
-            elapsed = time.perf_counter() - start_time
 
             elapsed = time.perf_counter() - start_time
             raw = response.choices[0].message.content or ""
@@ -335,57 +375,36 @@ DOCUMENT SAMPLE:
         prompt = """
 You are an expert Software Requirements Analyst.
 
-The document has already been classified as a genuine Software
-Requirements Specification (SRS).
+Extract only genuine software requirements explicitly stated in this SRS chunk.
 
-Extract ALL genuine software requirements from the provided SRS chunk.
+Rules:
+1. Do not invent, infer, strengthen, or rewrite requirements.
+2. Preserve the source wording as closely as possible.
+3. Extract functional, non-functional, security, business-rule, legal/privacy/compliance,
+   measurable performance, and genuine software constraints when explicitly stated.
+4. A requirement does not need "shall" or "must" if the source clearly expresses
+   a normative obligation, required behavior, measurable target, constraint, or rule.
+5. Do not extract headings, titles, IDs, examples, explanatory prose, goals, benefits,
+   generic descriptions, capabilities, features, or future plans.
+6. Do not extract workflow/use-case steps, implementation steps, short action fragments,
+   or internal processing steps unless explicitly stated as a normative requirement.
+7. Do not extract technology names or design choices unless explicitly mandatory.
+8. Do not extract database schema/design details such as tables, keys, indexes,
+   columns, ORM details, SQL, internal IDs, or storage implementation details unless
+   explicitly stated as an externally applicable software requirement.
+9. Do not extract hardware/infrastructure details unless explicitly mandatory for
+   software deployment.
+10. Each item must independently express a complete requirement.
+11. Do not create duplicates.
+12. Extract every genuine requirement present in this chunk.
+13. The response MUST be exactly ONE JSON OBJECT, never a JSON array.
+14. NEVER wrap the response in [ ].
+15. The top-level JSON object MUST contain exactly "is_srs" and "requirements".
+16. For laws, regulations, privacy, or compliance, use "constraint" or "other".
+17. You may use a descriptive requirement type when useful; the application will normalize it.
+18. Extract every genuine requirement present in the chunk; do not omit requirements just to keep the response short.
 
-IMPORTANT RULES:
-
-1. Extract only requirements explicitly supported by the source.
-2. NEVER invent, infer, or strengthen a requirement.
-3. Preserve source wording as closely as possible.
-4. Do not convert a feature, capability, goal, benefit, or description
-   into a requirement.
-5. Do not rewrite ordinary statements into "The system shall..."
-   unless the source itself expresses that obligation.
-6. Extract functional requirements.
-7. Extract non-functional requirements such as performance, security,
-   usability, reliability, availability, quality, etc. when explicitly
-   stated.
-8. Extract explicit business rules.
-9. Extract only constraints that impose a genuine obligation on the software or its users. Do NOT extract database schema definitions, SQL statements, PRIMARY KEY, FOREIGN KEY, CHECK constraints, indexes, column definitions, table structures, ORM details, or implementation metadata. Do NOT extract technology names such as React, FastAPI, PostgreSQL, Docker, Ollama, PyMuPDF, or python-docx merely because they appear in the document. A technology choice is a requirement ONLY when the source explicitly states that the system MUST use that technology as a mandatory constraint.
-10. Extract explicit security and access-control requirements.
-11. Extract explicit database requirements when stated as requirements
-    or constraints.
-12. Extract measurable performance requirements.
-13. Extract legal, privacy, safety, compliance and internationalization
-    requirements when explicitly stated.
-14. Ignore examples and explanatory prose that do not state a requirement.
-15. Ignore section headings and titles.
-16. NEVER extract a use-case ID/title by itself.
-17. If a use case contains actual requirement statements, extract those
-    requirement statements, not the use-case title.
-18. Do not create duplicate requirements.
-19. A requirement does NOT have to contain "shall" or "must" if the source
-    clearly states a normative obligation, expected behavior, measurable
-    quality target, constraint, or rule.
-20. Do NOT extract design decisions or technology choices merely because
-    they are mentioned.
-21. Do NOT extract future enhancements or future plans.
-22. Do NOT extract generic descriptions of the system.
-23. Do NOT extract workflow steps, process steps, activity descriptions, or short action fragments such as "Validate information", "Create project", "Extract text", "Identify requirements", "Generate report", or "Display requirements". Extract them only when the source explicitly states the action as a normative requirement describing required system behavior.
-24. Do NOT extract implementation steps, internal processing steps, sequence-of-operations descriptions, or use-case flow steps as separate requirements.
-25. Do NOT extract internal data-model or database-design rules as software requirements. Ignore entity relationships, table relationships, foreign keys, primary keys, indexes, column definitions, cascade behavior, ORM rules, version-storage implementation details, internal analysis records, internal IDs, internal status fields, or database query logic.
-26. Do NOT extract statements that only describe how the software is internally implemented or how data is stored. Extract a database or technology constraint only when the SRS explicitly makes it a mandatory externally applicable system constraint.
-27. Do NOT extract hardware or infrastructure specifications merely because they describe the development/deployment environment. Extract them only when they are explicitly stated as mandatory system deployment requirements.
-28. A business rule must describe a real business/domain policy, authorization rule, or user-visible organizational rule. Do NOT classify internal database relationships or implementation rules as business rules.
-29. Each extracted item must independently express a complete requirement.
-30. Do NOT extract statements that merely describe what the system offers, contains, displays, provides, includes, or has (for example, "The system provides a Login page", "The system provides a Dashboard", or "The system includes search") unless the source explicitly expresses the statement as a mandatory or normative requirement. Reject fragments, labels, headings, noun phrases, or short workflow actions such as "System validates", "Project is created", "Extract text", "Generate report", or "Display requirements" unless the source explicitly defines the complete statement as a normative requirement.
-23. Extract every genuine requirement present in this chunk.
-
-Allowed requirement types:
-
+Allowed types:
 functional
 non-functional
 business-rule
@@ -393,7 +412,7 @@ constraint
 security
 other
 
-Return ONLY JSON:
+Return ONLY valid JSON in exactly this structure:
 
 {
   "is_srs": true,
@@ -405,7 +424,7 @@ Return ONLY JSON:
   ]
 }
 
-If this chunk contains no requirements:
+If there are no genuine requirements:
 
 {
   "is_srs": true,
@@ -417,9 +436,11 @@ SRS CHUNK:
 
         try:
 
-            response = None
 
-            for attempt in range(3):
+            response = None
+            max_attempts = 2
+
+            for attempt in range(1, max_attempts + 1):
                 try:
                     response = self.client.chat.completions.create(
                         model=self.MODEL,
@@ -430,25 +451,106 @@ SRS CHUNK:
                             }
                         ],
                         temperature=0,
-                        max_tokens=900,
+                        max_completion_tokens=4096,
+                        reasoning_effort="low",
+                        include_reasoning=False,
                         response_format={
-                            "type": "json_object"
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": "requirement_extraction",
+                                "strict": True,
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "is_srs": {"type": "boolean"},
+                                        "requirements": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "type": {"type": "string"},
+                                                    "text": {"type": "string"},
+                                                },
+                                                "required": ["type", "text"],
+                                                "additionalProperties": False,
+                                            },
+                                        },
+                                    },
+                                    "required": ["is_srs", "requirements"],
+                                    "additionalProperties": False,
+                                },
+                            },
                         },
                     )
                     break
+
                 except Exception as exc:
                     error_text = str(exc)
-                    if "429" not in error_text or attempt == 2:
-                        raise
-                    wait_seconds = 10 * (attempt + 1)
+                    lower_error = error_text.lower()
+
+                    # Groq daily quota cannot be fixed by retrying. Fall back
+                    # immediately to Gemini when a key is configured.
+                    if "tokens per day" in lower_error:
+                        print(
+                            f"[AI Fallback] Chunk {chunk_number} | "
+                            "Groq daily token limit reached."
+                        )
+                        response = self._ask_openrouter(
+                            prompt, chunk_number=chunk_number
+                        )
+                        if response is not None:
+                            break
+                        print(
+                            f"[AI Request Error] Chunk {chunk_number} | "
+                            "Groq quota reached and Gemini fallback failed."
+                        )
+                        return None
+
+                    retryable = (
+                        "429" in lower_error
+                        or "rate limit" in lower_error
+                        or "timeout" in lower_error
+                        or "timed out" in lower_error
+                        or "connection" in lower_error
+                        or "502" in lower_error
+                        or "503" in lower_error
+                        or "504" in lower_error
+                    )
+
+                    if not retryable or attempt == max_attempts:
+                        print(
+                            f"[AI Request Error] Chunk {chunk_number} | "
+                            f"attempt {attempt}/{max_attempts} | {exc}"
+                        )
+                        # For a 429 that is not TPD, use Gemini too.
+                        if "429" in lower_error and self.gemini_api_key:
+                            response = self._ask_openrouter(
+                                prompt, chunk_number=chunk_number
+                            )
+                            if response is not None:
+                                break
+                        return None
+
+                    wait_seconds = 10 * attempt if "429" in lower_error else 2
+
                     print(
                         f"[AI Retry] Chunk {chunk_number} | "
-                        f"attempt {attempt + 1}/3 | waiting {wait_seconds}s"
+                        f"attempt {attempt}/{max_attempts} | "
+                        f"waiting {wait_seconds}s"
                     )
                     time.sleep(wait_seconds)
 
+            if response is None:
+                return None
+
+            # Gemini fallback returns the raw JSON text in a lightweight
+            # response-compatible tuple.
+            if isinstance(response, str):
+                raw = response
+            else:
+                raw = response.choices[0].message.content or ""
             elapsed = time.perf_counter() - start_time
-            raw = response.choices[0].message.content or ""
+            print(f"[AI Raw Response] Chunk {chunk_number} | {len(raw)} chars")
 
             print(
                 f"[AI Response] Chunk {chunk_number} "
@@ -457,9 +559,79 @@ SRS CHUNK:
 
             data = json.loads(raw)
 
-            return RequirementExtractionResult.model_validate(
-                data
-            )
+            def is_schema_or_sql_detail(text: str) -> bool:
+                """Reject database/schema implementation fragments, not real requirements."""
+                import re
+
+                value = " ".join(str(text).strip().split())
+                if not value:
+                    return True
+
+                schema_patterns = (
+                    r"\bNOT\s+NULL\b",
+                    r"\bPRIMARY\s+KEY\b",
+                    r"\bFOREIGN\s+KEY\b",
+                    r"\bREFERENCES\s+[A-Za-z_][\w$]*\s*\(",
+                    r"\bCHECK\s*\(",
+                    r"\bBIGSERIAL\b",
+                    r"\bAUTO[- ]?INCREMENT(?:ING)?\b",
+                    r"\bCREATE\s+TABLE\b",
+                    r"\bALTER\s+TABLE\b",
+                    r"\bCREATE\s+INDEX\b",
+                    r"\bINSERT\s+INTO\b",
+                    r"\bSELECT\s+.+\s+FROM\b",
+                    r"\bUPDATE\s+.+\s+SET\b",
+                    r"\bDELETE\s+FROM\b",
+                )
+
+                return any(re.search(pattern, value, re.IGNORECASE) for pattern in schema_patterns)
+
+            type_map = {
+                "functional": "functional",
+                "functional requirement": "functional",
+                "non-functional": "non-functional",
+                "nonfunctional": "non-functional",
+                "non functional": "non-functional",
+                "performance": "non-functional",
+                "usability": "non-functional",
+                "reliability": "non-functional",
+                "availability": "non-functional",
+                "scalability": "non-functional",
+                "business-rule": "business-rule",
+                "business rule": "business-rule",
+                "business": "business-rule",
+                "constraint": "constraint",
+                "constraints": "constraint",
+                "legal": "constraint",
+                "compliance": "constraint",
+                "privacy": "constraint",
+                "security": "security",
+                "secure": "security",
+                "other": "other",
+            }
+
+            filtered_requirements = []
+
+            for item in data.get("requirements", []):
+                text = str(item.get("text", "")).strip()
+
+                # LLMs can still return raw SQL/schema fragments even when the
+                # prompt explicitly asks them not to. Filter those deterministically.
+                if is_schema_or_sql_detail(text):
+                    print(
+                        f"[AI Filter] Chunk {chunk_number} | "
+                        f"Skipped schema/SQL detail: {text[:120]}"
+                    )
+                    continue
+
+                raw_type = str(item.get("type", "")).strip().lower()
+                item["type"] = type_map.get(raw_type, "other")
+                item["text"] = text
+                filtered_requirements.append(item)
+
+            data["requirements"] = filtered_requirements
+
+            return RequirementExtractionResult.model_validate(data)
 
         except json.JSONDecodeError as exc:
 
@@ -483,6 +655,125 @@ SRS CHUNK:
                 f"| {exc}"
             )
 
+            return None
+
+    # ---------------------------------------------------------
+    # OPENROUTER FREE FALLBACK
+    # ---------------------------------------------------------
+
+    def _ask_openrouter(self, prompt: str, chunk_number: int) -> str | None:
+        """Use OpenRouter's free-model router when Groq is unavailable."""
+        if not self.openrouter_api_key:
+            print(
+                f"[AI Fallback] Chunk {chunk_number} | "
+                "OPENROUTER_API_KEY is not configured."
+            )
+            return None
+
+        try:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+
+            payload = {
+                "model": self.openrouter_model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                "temperature": 0,
+                "max_tokens": 2048,
+                "stream": False,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "requirement_extraction",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "is_srs": {"type": "boolean"},
+                                "requirements": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {"type": "string"},
+                                            "text": {"type": "string"}
+                                        },
+                                        "required": ["type", "text"],
+                                        "additionalProperties": False
+                                    }
+                                }
+                            },
+                            "required": ["is_srs", "requirements"],
+                            "additionalProperties": False
+                        }
+                    }
+                }
+            }
+
+            request = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "HTTP-Referer": "http://localhost",
+                    "X-Title": "ReqIntel",
+                },
+                method="POST",
+            )
+
+            with urllib.request.urlopen(request, timeout=35) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            choices = data.get("choices", [])
+            if not choices:
+                print(
+                    f"[AI OpenRouter Error] Chunk {chunk_number} | "
+                    "No choices returned."
+                )
+                return None
+
+            raw = choices[0].get("message", {}).get("content", "")
+            if isinstance(raw, list):
+                raw = "".join(
+                    part.get("text", "")
+                    for part in raw
+                    if isinstance(part, dict)
+                )
+            raw = str(raw).strip()
+
+            if not raw:
+                print(
+                    f"[AI OpenRouter Error] Chunk {chunk_number} | "
+                    "Empty response."
+                )
+                return None
+
+            print(
+                f"[AI OpenRouter Fallback] Chunk {chunk_number} | "
+                "Free model response received."
+            )
+            return raw
+
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                detail = str(exc)
+
+            print(
+                f"[AI OpenRouter Error] Chunk {chunk_number} | "
+                f"HTTP {exc.code} | {detail[:500]}"
+            )
+            return None
+
+        except Exception as exc:
+            print(
+                f"[AI OpenRouter Error] Chunk {chunk_number} | {exc}"
+            )
             return None
 
     # ---------------------------------------------------------

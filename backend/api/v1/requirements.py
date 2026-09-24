@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth.schemas import UserResponse
 from core.dependencies import get_current_user
 from db.session import get_db
+from fastapi import HTTPException
 from models.requirement import (
     ExtractedRequirementSummary,
     ManualRequirementCreate,
@@ -145,12 +146,17 @@ async def extract_requirements(
 
     service = RequirementService(db)
 
-    return await service.extract_requirements(
-        UUID(current_user.id),
-        project_id,
-        source_id,
-    )
-
+    try:
+        return await service.extract_requirements(
+            UUID(current_user.id),
+            project_id,
+            source_id,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        )
 
 @router.get(
     "",

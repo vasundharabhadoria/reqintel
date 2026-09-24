@@ -25,8 +25,16 @@ import {
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import "../styles/requirements.css";
 
-function getFileIcon(filename = "") {
-  const extension = filename.split(".").pop().toLowerCase();
+function getFileIcon(filename) {
+  const safeFilename =
+    typeof filename === "string"
+      ? filename
+      : "";
+
+  const extension = safeFilename
+    .split(".")
+    .pop()
+    .toLowerCase();
 
   if (extension === "pdf") {
     return (
@@ -50,6 +58,7 @@ function getFileIcon(filename = "") {
     </span>
   );
 }
+
 const STATUS_OPTIONS = [
   "all",
   "pending",
@@ -80,14 +89,22 @@ function RequirementsPanel({
     searchInput,
     300
   );
+
+  const ITEMS_PER_PAGE = 6;
+
   const totalPages = Math.max(
     1,
-    Math.ceil(items.length / 6)
+    Math.ceil(items.length / ITEMS_PER_PAGE)
   );
 
   const pageItems = useMemo(() => {
-    const start = (currentPage - 1) * 6;
-    return items.slice(start, start + 6);
+    const start =
+      (currentPage - 1) * ITEMS_PER_PAGE;
+
+    return items.slice(
+      start,
+      start + ITEMS_PER_PAGE
+    );
   }, [items, currentPage]);
 
   useEffect(() => {
@@ -121,11 +138,15 @@ function RequirementsPanel({
       ]);
 
       setItems(
-        requirementsData.items || []
+        Array.isArray(requirementsData?.items)
+          ? requirementsData.items
+          : []
       );
 
       setSources(
-        sourcesData.items || []
+        Array.isArray(sourcesData?.items)
+          ? sourcesData.items
+          : []
       );
     } catch (err) {
       setLoadError(
@@ -145,15 +166,13 @@ function RequirementsPanel({
     fetchRequirements();
   }, [fetchRequirements]);
 
-  /*
-   * Create a source lookup once instead of calling
-   * sources.find() for every requirement row.
-   */
   const sourcesById = useMemo(() => {
     const map = new Map();
 
     for (const source of sources) {
-      map.set(source.id, source);
+      if (source?.id) {
+        map.set(source.id, source);
+      }
     }
 
     return map;
@@ -168,12 +187,6 @@ function RequirementsPanel({
       return;
     }
 
-    /*
-     * Show the modal immediately.
-     * The actual Rule Engine request happens after
-     * the state update, so the user gets immediate
-     * visual feedback.
-     */
     setShowAnalyzeModal(true);
     setAnalyzing(true);
     setLoadError("");
@@ -182,20 +195,11 @@ function RequirementsPanel({
       const analysisData =
         await analyzeRequirements(projectId);
 
-      /*
-       * Store the already-computed result so the
-       * RuleEngine page does not execute the analysis
-       * again.
-       */
       sessionStorage.setItem(
         `rule-engine-analysis-${projectId}`,
         JSON.stringify(analysisData)
       );
 
-      /*
-       * Use React Router instead of window.location.href.
-       * This avoids a complete browser reload.
-       */
       navigate(
         `/projects/${projectId}/rule-engine`,
         {
@@ -230,11 +234,34 @@ function RequirementsPanel({
     }
   }, [analyzing]);
 
+  function getRequirementText(req) {
+    const rawText =
+      req?.current_requirement_text ||
+      req?.title ||
+      "No requirement text available.";
+
+    const text =
+      typeof rawText === "string"
+        ? rawText
+        : String(rawText);
+
+    return text
+      .replace(
+        /^[\sï¿½]*REQ-\d+:\s*/i,
+        ""
+      )
+      .replace(/^[\sï¿½]+/, "")
+      .trim()
+      .replace(/^[^A-Za-z0-9]+/, "");
+  }
+
   return (
     <div className="requirements-panel">
+
       <div className="requirements-page-header">
         <div>
           <h2>Requirements</h2>
+
           <p>
             Review and manage all extracted requirements from your project
             documents.
@@ -277,6 +304,7 @@ function RequirementsPanel({
           }
         />
       </div>
+
       {loading && (
         <p className="muted-text">
           Loading requirementsâ€¦
@@ -311,149 +339,204 @@ function RequirementsPanel({
         !loadError &&
         items.length > 0 && (
           <div className="requirements-table-card">
+
             <div className="requirements-table-header">
-  <div>#</div>
-  <div>Requirement ID</div>
-  <div>Requirement</div>
-  <div>Source Document</div>
-</div>
+              <div>#</div>
+              <div>Requirement ID</div>
+              <div>Requirement</div>
+              <div>Source Document</div>
+            </div>
 
             <div className="requirements-table-body">
+
               {pageItems.map((req, index) => {
+
                 const source =
                   sourcesById.get(
-                    req.source_id
+                    req?.source_id
                   );
 
                 return (
                   <button
-                    key={req.id}
+                    key={
+                      req?.id ||
+                      `requirement-${index}`
+                    }
                     type="button"
                     className="requirements-table-row"
-                    onClick={() =>
-                      onSelectRequirement(
-                        req.id
-                      )
-                    }
+                    onClick={() => {
+                      if (req?.id) {
+                        onSelectRequirement(
+                          req.id
+                        );
+                      }
+                    }}
                   >
-                    <div className="requirement-number-cell">
-  {index + 1}
-</div>
 
-<div className="requirement-id-cell">
-  {req.requirement_code}
-</div>
+                    <div className="requirement-number-cell">
+                      {(currentPage - 1) *
+                        ITEMS_PER_PAGE +
+                        index +
+                        1}
+                    </div>
+
+                    <div className="requirement-id-cell">
+                      {req?.requirement_code ||
+                        "â€”"}
+                    </div>
 
                     <div className="requirement-text-cell">
-  <p>
-            {(req.current_requirement_text ||
-              req.title ||
-              "No requirement text available.")
-              .replace(/^[\s•]*REQ-\d+:\s*/i, "")
-              .replace(/^[\s•]+/, "")
-              .trim().replace(/^[^A-Za-z0-9]+/, "")}
-            </p>
-</div>
+                      <p>
+                        {getRequirementText(req)}
+                      </p>
+                    </div>
 
                     <div className="requirement-source-cell">
-  {getFileIcon(source?.original_filename)}
 
-  <span>
-    {source?.original_filename ||
-      "Unknown document"}
-  </span>
-</div>
+                      {getFileIcon(
+                        source?.original_filename
+                      )}
+
+                      <span>
+                        {source?.original_filename ||
+                          "Unknown document"}
+                      </span>
+
+                    </div>
+
                   </button>
                 );
               })}
+
             </div>
           </div>
         )}
 
-      <div className="requirements-pagination">
-        <div className="requirements-pagination-info">
-          Showing {(currentPage - 1) * 6 + 1} to{" "}
-          {Math.min(currentPage * 6, items.length)} of{" "}
-          {items.length} extracted requirements
-        </div>
+      {items.length > 0 && (
+        <div className="requirements-pagination">
 
-        <div className="requirements-pagination-controls">
-          <button
-            type="button"
-            className="pagination-arrow"
-            onClick={() =>
-              setCurrentPage((page) => Math.max(1, page - 1))
-            }
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft size={18} />
-          </button>
+          <div className="requirements-pagination-info">
+            Showing{" "}
+            {(currentPage - 1) *
+              ITEMS_PER_PAGE +
+              1}{" "}
+            to{" "}
+            {Math.min(
+              currentPage * ITEMS_PER_PAGE,
+              items.length
+            )}{" "}
+            of {items.length} extracted requirements
+          </div>
 
-          {Array.from(
-            { length: Math.min(totalPages, 3) },
-            (_, index) => index + 1
-          ).map((page) => (
+          <div className="requirements-pagination-controls">
+
             <button
-              key={page}
               type="button"
-              className={`pagination-page ${
-                currentPage === page ? "active" : ""
-              }`}
-              onClick={() => setCurrentPage(page)}
+              className="pagination-arrow"
+              onClick={() =>
+                setCurrentPage((page) =>
+                  Math.max(1, page - 1)
+                )
+              }
+              disabled={currentPage === 1}
             >
-              {page}
+              <ChevronLeft size={18} />
             </button>
-          ))}
 
-          {totalPages > 4 && (
-            <>
-              <span className="pagination-dots">...</span>
+            {Array.from(
+              {
+                length: Math.min(
+                  totalPages,
+                  3
+                ),
+              },
+              (_, index) => index + 1
+            ).map((page) => (
+              <button
+                key={page}
+                type="button"
+                className={`pagination-page ${
+                  currentPage === page
+                    ? "active"
+                    : ""
+                }`}
+                onClick={() =>
+                  setCurrentPage(page)
+                }
+              >
+                {page}
+              </button>
+            ))}
 
+            {totalPages > 4 && (
+              <>
+                <span className="pagination-dots">
+                  ...
+                </span>
+
+                <button
+                  type="button"
+                  className={`pagination-page ${
+                    currentPage === totalPages
+                      ? "active"
+                      : ""
+                  }`}
+                  onClick={() =>
+                    setCurrentPage(totalPages)
+                  }
+                >
+                  {totalPages}
+                </button>
+              </>
+            )}
+
+            {totalPages === 4 && (
               <button
                 type="button"
                 className={`pagination-page ${
-                  currentPage === totalPages ? "active" : ""
+                  currentPage === 4
+                    ? "active"
+                    : ""
                 }`}
-                onClick={() => setCurrentPage(totalPages)}
+                onClick={() =>
+                  setCurrentPage(4)
+                }
               >
-                {totalPages}
+                4
               </button>
-            </>
-          )}
+            )}
 
-          {totalPages === 4 && (
             <button
               type="button"
-              className={`pagination-page ${
-                currentPage === 4 ? "active" : ""
-              }`}
-              onClick={() => setCurrentPage(4)}
+              className="pagination-arrow"
+              onClick={() =>
+                setCurrentPage((page) =>
+                  Math.min(
+                    totalPages,
+                    page + 1
+                  )
+                )
+              }
+              disabled={
+                currentPage === totalPages
+              }
             >
-              4
+              <ChevronRight size={18} />
             </button>
-          )}
 
-          <button
-            type="button"
-            className="pagination-arrow"
-            onClick={() =>
-              setCurrentPage((page) =>
-                Math.min(totalPages, page + 1)
-              )
-            }
-            disabled={currentPage === totalPages}
-          >
-            <ChevronRight size={18} />
-          </button>
+            <div className="pagination-page-size">
+              6 / page
+            </div>
 
-          <div className="pagination-page-size">
-            6 / page
           </div>
         </div>
-      </div>
+      )}
+
       {showAnalyzeModal && (
         <div className="analyze-modal-overlay">
+
           <div className="analyze-modal">
+
             <button
               type="button"
               className="analyze-modal-close"
@@ -501,6 +584,7 @@ function RequirementsPanel({
             </div>
 
             <div className="analyze-step active">
+
               <div className="step-icon">
                 {analyzing ? (
                   <Loader2
@@ -513,6 +597,7 @@ function RequirementsPanel({
               </div>
 
               <div className="step-content">
+
                 <strong>
                   Running Rule Engine
                 </strong>
@@ -522,6 +607,7 @@ function RequirementsPanel({
                     ? "Validating requirements with business rules..."
                     : "Requirement validation completed."}
                 </span>
+
               </div>
 
               <div className="step-status">
@@ -529,6 +615,7 @@ function RequirementsPanel({
                   ? "In Progress"
                   : "Completed"}
               </div>
+
             </div>
 
             {!analyzing && (
@@ -536,26 +623,14 @@ function RequirementsPanel({
                 Opening Rule Engine...
               </p>
             )}
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 }
 
 export default RequirementsPanel;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

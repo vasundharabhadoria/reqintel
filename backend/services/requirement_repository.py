@@ -344,6 +344,100 @@ class RequirementRepository:
 
         return result.scalar_one()
 
+    async def create_requirements_with_versions_batch(
+        self,
+        project_id: UUID,
+        source_id: UUID,
+        requirements: list[dict],
+        created_by: UUID,
+    ) -> list[dict]:
+        """Create requirements and initial versions using two bulk INSERTs."""
+        if not requirements:
+            return []
+
+        await self.lock_project_for_code_generation(project_id)
+
+        result = await self.db.execute(
+            text(
+                """
+                SELECT COALESCE(
+                    MAX(
+                        CAST(
+                            SUBSTRING(
+                                requirement_code FROM 'REQ-(\\d+)$'
+                            ) AS INTEGER
+                        )
+                    ),
+                    0
+                )
+                FROM requirements
+                WHERE project_id = :project_id
+                  AND requirement_code ~ '^REQ-\\d+$'
+                """
+            ),
+            {"project_id": project_id},
+        )
+        start_number = int(result.scalar_one()) + 1
+
+        params = {}
+        values = []
+
+        for i, item in enumerate(requirements):
+            params[f"id_{i}"] = UUID(str(item["id"]))
+            params[f"project_{i}"] = project_id
+            params[f"source_{i}"] = source_id
+            params[f"code_{i}"] = f"REQ-{start_number + i:03d}"
+            params[f"title_{i}"] = item["title"]
+            params[f"created_{i}"] = created_by
+
+            values.append(
+                f"(:id_{i}, :project_{i}, :source_{i}, :code_{i}, "
+                f":title_{i}, :created_{i})"
+            )
+
+        result = await self.db.execute(
+            text(
+                f"""
+                INSERT INTO requirements
+                    (id, project_id, source_id, requirement_code, title, created_by)
+                VALUES {", ".join(values)}
+                RETURNING {_REQUIREMENT_COLUMNS}
+                """
+            ),
+            params,
+        )
+
+        created = [dict(row) for row in result.mappings().all()]
+
+        version_params = {}
+        version_values = []
+
+        for i, item in enumerate(requirements):
+            version_params[f"vid_{i}"] = UUID(str(item["version_id"]))
+            version_params[f"rid_{i}"] = UUID(str(item["id"]))
+            version_params[f"text_{i}"] = item["requirement_text"]
+            version_params[f"created_{i}"] = created_by
+            version_params[f"summary_{i}"] = "Initial version."
+
+            version_values.append(
+                f"(:vid_{i}, :rid_{i}, 1, :text_{i}, "
+                f":summary_{i}, NULL, :created_{i})"
+            )
+
+        await self.db.execute(
+            text(
+                f"""
+                INSERT INTO requirement_versions
+                    (id, requirement_id, version_number, requirement_text,
+                     change_summary, final_quality_score, created_by)
+                VALUES {", ".join(version_values)}
+                """
+            ),
+            version_params,
+        )
+
+        return created
+
     async def create_version(
         self,
         requirement_id: UUID,

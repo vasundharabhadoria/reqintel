@@ -6,6 +6,7 @@ import DashboardPage from "../features/dashboard/pages/DashboardPage";
 import ProjectsPage from "../features/projects/pages/ProjectsPage";
 import ProjectWorkspacePage from "../features/requirements/pages/ProjectWorkspacePage";
 import RuleEnginePage from "../features/rule-engine/pages/RuleEnginePage";
+import MasterModulePage from "../features/master-module/pages/MasterModulePage";
 import ProtectedRoute from "./ProtectedRoute";
 
 function AppRoutes() {
@@ -15,6 +16,15 @@ function AppRoutes() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+
+      <Route
+        path="/master-module"
+        element={
+          <ProtectedRoute>
+            <MasterModulePage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/dashboard"
