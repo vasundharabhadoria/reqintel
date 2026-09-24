@@ -49,7 +49,7 @@ def get_categories(
             supabase
             .from_("rule_categories")
             .select(
-                "id, name, description, is_active"
+                "id, name, description, evaluation_mode, is_active"
             )
             .order("name")
             .execute()
@@ -87,6 +87,7 @@ def create_category(
                         if payload.description
                         else None
                     ),
+                    "evaluation_mode": payload.evaluation_mode,
                 }
             )
             .execute()
@@ -127,9 +128,10 @@ def update_category(
         update_data["name"] = payload.name.strip()
 
     if payload.description is not None:
-        update_data["description"] = (
-            payload.description.strip()
-        )
+        update_data["description"] = payload.description.strip()
+
+    if payload.evaluation_mode is not None:
+        update_data["evaluation_mode"] = payload.evaluation_mode
 
     if payload.is_active is not None:
         update_data["is_active"] = payload.is_active
@@ -352,19 +354,13 @@ def update_rule(
         update_data["rule"] = payload.rule.strip()
 
     if payload.description is not None:
-        update_data["description"] = (
-            payload.description.strip()
-        )
+        update_data["description"] = payload.description.strip()
 
     if payload.why_it_matters is not None:
-        update_data["why_it_matters"] = (
-            payload.why_it_matters.strip()
-        )
+        update_data["why_it_matters"] = payload.why_it_matters.strip()
 
     if payload.recommendation is not None:
-        update_data["recommendation"] = (
-            payload.recommendation.strip()
-        )
+        update_data["recommendation"] = payload.recommendation.strip()
 
     if payload.rule_type is not None:
         update_data["rule_type"] = payload.rule_type
