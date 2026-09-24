@@ -3,12 +3,6 @@ from collections import defaultdict
 from core.supabase import supabase
 
 
-POSITIVE_CATEGORIES = {
-    "actor",
-    "action",
-}
-
-
 def _finding(
     rule_name,
     passed,
@@ -36,7 +30,8 @@ def _load_active_rules():
     """
     Load active rules configured through the Master Module.
 
-    Returns active rules together with their category names.
+    Returns active rules together with their category names,
+    descriptions, and evaluation modes.
     """
 
     try:
@@ -78,9 +73,10 @@ def _load_active_rules():
         categories_response = (
             supabase.from_("rule_categories")
             .select(
-                "id, name, description, is_active"
+                "id, name, description, evaluation_mode, is_active"
             )
             .in_("id", category_ids)
+            .eq("is_active", True)
             .execute()
         )
 
@@ -98,17 +94,22 @@ def _load_active_rules():
                 rule.get("category_id")
             )
 
+            if not category:
+                continue
+
             enriched_rule = {
                 **rule,
                 "category_name": (
                     category.get("name")
-                    if category
-                    else "Other"
+                    or "Other"
                 ),
                 "category_description": (
                     category.get("description")
-                    if category
-                    else ""
+                    or ""
+                ),
+                "evaluation_mode": (
+                    category.get("evaluation_mode")
+                    or "Issue"
                 ),
             }
 
@@ -247,90 +248,138 @@ def _build_matched_rule(rule):
 def _build_category_finding(
     category_name,
     category_description,
+    evaluation_mode,
     matched_rules,
 ):
     """
     Build one finding for a category.
 
-    Instead of creating:
-        quickly
-        easily
-        appropriately
+    Evaluation mode controls PASS/FAIL:
 
-    as separate findings, this creates:
+    Issue:
+        Rule matched     -> FAIL
+        No rule matched  -> PASS
 
-        Ambiguous
-            -> quickly
+    Check:
+        Rule matched     -> PASS
+        No rule matched  -> FAIL
     """
 
-    category_key = (
+    category_name = (
         category_name or "Other"
-    ).strip().lower()
+    ).strip()
 
-    is_positive_category = (
-        category_key in POSITIVE_CATEGORIES
-    )
+    evaluation_mode = (
+        evaluation_mode or "Issue"
+    ).strip().lower()
 
     rule_names = [
         rule["rule"]
         for rule in matched_rules
     ]
 
-    if is_positive_category:
+    is_check = evaluation_mode == "check"
+
+    # =========================================================
+    # RULE MATCHED
+    # =========================================================
+
+    if matched_rules:
 
         if len(rule_names) == 1:
-            description = (
-                f"The requirement contains "
-                f"the expected {category_key} "
-                f"'{rule_names[0]}'."
+            matched_text = (
+                f"the configured rule "
+                f"'{rule_names[0]}'"
             )
         else:
-            description = (
-                f"The requirement contains "
-                f"the expected {category_key} "
-                f"terms: {', '.join(rule_names)}."
+            matched_text = (
+                f"{len(rule_names)} configured rules: "
+                f"{', '.join(rule_names)}"
             )
 
-        recommendation = (
-            "No action is required."
-        )
+        if is_check:
+            description = (
+                f"The requirement satisfies the "
+                f"{category_name} check because "
+                f"{matched_text} matched."
+            )
 
-        passed = True
+            recommendation = (
+                "No action is required."
+            )
+
+            passed = True
+
+        else:
+            if len(rule_names) == 1:
+                description = (
+                    f"The requirement matches "
+                    f"the {category_name} rule "
+                    f"'{rule_names[0]}'."
+                )
+            else:
+                description = (
+                    f"The requirement matches "
+                    f"{len(rule_names)} "
+                    f"{category_name} rules: "
+                    f"{', '.join(rule_names)}."
+                )
+
+            recommendations = [
+                rule["recommendation"]
+                for rule in matched_rules
+                if rule.get("recommendation")
+            ]
+
+            recommendation = (
+                " ".join(
+                    dict.fromkeys(recommendations)
+                )
+                if recommendations
+                else (
+                    f"Review the requirement "
+                    f"against the {category_name} rules."
+                )
+            )
+
+            passed = False
+
+    # =========================================================
+    # NO RULE MATCHED
+    # =========================================================
 
     else:
 
-        if len(rule_names) == 1:
+        if is_check:
             description = (
-                f"The requirement matches "
-                f"the {category_name} rule "
-                f"'{rule_names[0]}'."
+                f"The requirement does not satisfy "
+                f"the {category_name} check because "
+                f"none of its configured rules matched."
             )
+
+            recommendation = (
+                f"Ensure the requirement contains "
+                f"the information required by the "
+                f"{category_name} checks."
+            )
+
+            passed = False
+
         else:
             description = (
-                f"The requirement matches "
-                f"{len(rule_names)} "
-                f"{category_name} rules: "
-                f"{', '.join(rule_names)}."
+                f"No {category_name} issue was detected "
+                f"in the requirement."
             )
 
-        recommendations = [
-            rule["recommendation"]
-            for rule in matched_rules
-            if rule.get("recommendation")
-        ]
-
-        recommendation = (
-            " ".join(
-                dict.fromkeys(recommendations)
+            recommendation = (
+                "No action is required."
             )
-            if recommendations
-            else (
-                f"Review the requirement "
-                f"against the {category_name} rules."
-            )
-        )
 
-        passed = False
+            passed = True
+
+    # =========================================================
+    # SEVERITY
+    # =========================================================
 
     severities = [
         rule["severity"]
@@ -353,8 +402,16 @@ def _build_category_finding(
             ),
         )
         if severities
-        else "Medium"
+        else (
+            "High"
+            if not passed
+            else "Low"
+        )
     )
+
+    # =========================================================
+    # WHY IT MATTERS
+    # =========================================================
 
     why_it_matters_values = [
         rule["why_it_matters"]
@@ -389,12 +446,14 @@ def _build_category_finding(
 
 def _check_complete_requirement(
     lower_text,
+    actor_rules,
+    action_rules,
 ):
     """
     Structural requirement completeness check.
 
-    This remains part of the Rule Engine because
-    completeness is not simply a configurable keyword.
+    Actor and Action definitions come from the
+    Master Module instead of being hardcoded here.
     """
 
     if not lower_text:
@@ -410,56 +469,14 @@ def _check_complete_requirement(
 
     words = lower_text.split()
 
-    action_words = (
-        "allow",
-        "provide",
-        "register",
-        "login",
-        "log in",
-        "authenticate",
-        "create",
-        "update",
-        "delete",
-        "send",
-        "receive",
-        "store",
-        "display",
-        "maintain",
-        "reset",
-        "support",
-        "validate",
-        "generate",
-        "process",
-        "search",
-        "calculate",
-        "check",
-        "record",
-        "manage",
-        "view",
-    )
-
-    actor_words = (
-        "system",
-        "user",
-        "users",
-        "admin",
-        "administrator",
-        "application",
-        "customer",
-        "customers",
-        "librarian",
-        "member",
-        "members",
-    )
-
     has_actor = any(
-        word in words
-        for word in actor_words
+        _rule_matches(lower_text, rule)
+        for rule in actor_rules
     )
 
     has_action = any(
-        word in lower_text
-        for word in action_words
+        _rule_matches(lower_text, rule)
+        for rule in action_rules
     )
 
     enough_detail = len(words) >= 5
@@ -548,24 +565,16 @@ def analyze_requirements(requirements):
     Analyze requirements using rules configured
     through the Master Module.
 
-    Result structure:
+    Category PASS/FAIL behavior is controlled by
+    evaluation_mode.
 
-        Complete Requirement
+    Issue:
+        Match -> FAIL
+        No match -> PASS
 
-        Ambiguous
-            -> quickly
-
-        Actor
-            -> system
-            -> user
-
-        Action
-            -> allow
-
-        No Duplicate Found
-
-    Only rules that actually match the requirement
-    are included inside a category.
+    Check:
+        Match -> PASS
+        No match -> FAIL
     """
 
     master_rules = _load_active_rules()
@@ -604,6 +613,26 @@ def analyze_requirements(requirements):
                 requirement["id"]
             )
 
+    # =========================================================
+    # GET ACTOR AND ACTION RULES FROM MASTER MODULE
+    # =========================================================
+
+    actor_rules = [
+        rule
+        for rule in master_rules
+        if (
+            rule.get("category_name") or ""
+        ).strip().lower() == "actor"
+    ]
+
+    action_rules = [
+        rule
+        for rule in master_rules
+        if (
+            rule.get("category_name") or ""
+        ).strip().lower() == "action"
+    ]
+
     results = []
 
     for requirement in normalized:
@@ -622,7 +651,9 @@ def analyze_requirements(requirements):
 
         findings.append(
             _check_complete_requirement(
-                lower_text
+                lower_text,
+                actor_rules,
+                action_rules,
             )
         )
 
@@ -634,21 +665,38 @@ def analyze_requirements(requirements):
             list
         )
 
-        if lower_text:
+        category_metadata = {}
 
-            for rule in master_rules:
+        for rule in master_rules:
+
+            category_name = (
+                rule.get("category_name")
+                or "Other"
+            )
+
+            category_metadata[
+                category_name
+            ] = {
+                "description": (
+                    rule.get(
+                        "category_description"
+                    )
+                    or ""
+                ),
+                "evaluation_mode": (
+                    rule.get(
+                        "evaluation_mode"
+                    )
+                    or "Issue"
+                ),
+            }
+
+            if lower_text:
 
                 if _rule_matches(
                     lower_text,
                     rule,
                 ):
-
-                    category_name = (
-                        rule.get(
-                            "category_name"
-                        )
-                        or "Other"
-                    )
 
                     rules_by_category[
                         category_name
@@ -662,38 +710,16 @@ def analyze_requirements(requirements):
         # CREATE ONE FINDING PER CATEGORY
         # =========================================================
 
-        category_metadata = {}
-
-        for rule in master_rules:
-
-            category_name = (
-                rule.get(
-                    "category_name"
-                )
-                or "Other"
-            )
-
-            if category_name not in category_metadata:
-
-                category_metadata[
-                    category_name
-                ] = {
-                    "description": (
-                        rule.get(
-                            "category_description"
-                        )
-                        or ""
-                    )
-                }
-
         for (
             category_name,
-            matched_rules,
-        ) in rules_by_category.items():
+            metadata,
+        ) in category_metadata.items():
 
-            metadata = category_metadata.get(
-                category_name,
-                {},
+            matched_rules = (
+                rules_by_category.get(
+                    category_name,
+                    [],
+                )
             )
 
             findings.append(
@@ -702,6 +728,10 @@ def analyze_requirements(requirements):
                     category_description=metadata.get(
                         "description",
                         "",
+                    ),
+                    evaluation_mode=metadata.get(
+                        "evaluation_mode",
+                        "Issue",
                     ),
                     matched_rules=matched_rules,
                 )

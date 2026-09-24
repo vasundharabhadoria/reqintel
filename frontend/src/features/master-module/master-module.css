@@ -1106,3 +1106,238 @@
     padding: 20px;
   }
 }
+
+/* =========================
+   CATEGORY ACTIONS
+========================= */
+
+.category-item {
+  gap: 8px;
+  padding-right: 10px;
+}
+
+.category-select-button {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 5px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.category-select-button > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.category-action-button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.category-action-button.edit { color: #2468ed; }
+.category-action-button.delete { color: #ef3030; }
+.category-action-button.edit:hover { background: #edf4ff; color: #1d5ed8; }
+.category-action-button.delete:hover { background: #fff0f0; color: #dc2626; }
+.category-action-button:focus-visible,
+.category-select-button:focus-visible {
+  outline: 2px solid #2468ed;
+  outline-offset: 2px;
+}
+
+.evaluation-mode-help {
+  margin-top: 7px;
+  padding: 9px 11px;
+  border: 1px solid #dbe8f7;
+  border-radius: 7px;
+  background: #f7faff;
+  color: #6683a3;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.evaluation-mode-help strong {
+  color: #17365d;
+  font-weight: 700;
+}
+
+@media (max-width: 850px) {
+  .category-select-button { min-height: 46px; }
+  .category-actions { gap: 2px; }
+}
+
+@media (max-width: 480px) {
+  .category-item { padding-right: 6px; }
+  .category-select-button { padding-left: 3px; padding-right: 3px; }
+  .category-action-button { width: 28px; height: 28px; }
+}
+
+/* =========================
+   IN-APP NOTIFICATIONS
+========================= */
+
+.master-notification-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 43, 86, 0.28);
+}
+
+.master-notification-card,
+.master-delete-confirm-card {
+  width: min(100%, 470px);
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  box-shadow: 0 18px 55px rgba(15, 48, 91, 0.20);
+}
+
+.master-notification-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.master-notification-card.success .master-notification-icon {
+  color: #159447;
+  background: #eaf8ef;
+}
+
+.master-notification-card.error .master-notification-icon {
+  color: #c62c2c;
+  background: #fff0f0;
+}
+
+.master-notification-icon,
+.master-delete-confirm-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.master-notification-content {
+  min-width: 0;
+}
+
+.master-notification-content h3 {
+  margin: 0 0 5px;
+  color: #071d3a;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.master-notification-content p {
+  margin: 0;
+  color: #6683a3;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.master-notification-close {
+  min-width: 58px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: #2468ed;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.master-notification-close:hover {
+  background: #1d5ed8;
+}
+
+.master-delete-confirm-card {
+  max-width: 470px;
+}
+
+.master-delete-confirm-icon {
+  margin-bottom: 14px;
+  color: #ef3030;
+  background: #fff0f0;
+}
+
+.master-delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.master-delete-confirm-button {
+  min-height: 39px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #ef3030;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.master-delete-confirm-button:hover {
+  background: #dc2626;
+}
+
+@media (max-width: 480px) {
+  .master-notification-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .master-notification-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .master-notification-close {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .master-delete-confirm-actions {
+    flex-direction: column-reverse;
+  }
+
+  .master-delete-confirm-actions button {
+    width: 100%;
+  }
+}

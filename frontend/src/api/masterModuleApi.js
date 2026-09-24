@@ -6,12 +6,17 @@ export function getCategories() {
   });
 }
 
-export function createCategory(name, description) {
+export function createCategory(
+  name,
+  description,
+  evaluationMode = "Issue"
+) {
   return apiRequest("/api/v1/master/categories", {
     method: "POST",
     body: JSON.stringify({
       name,
       description,
+      evaluation_mode: evaluationMode,
     }),
   });
 }

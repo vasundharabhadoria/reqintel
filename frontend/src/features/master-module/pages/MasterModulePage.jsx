@@ -9,6 +9,8 @@ import {
   X,
   Settings,
   ChevronDown,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -17,6 +19,7 @@ import { clearTokens } from "../../../api/tokenStorage";
 import {
   getCategories,
   createCategory,
+  updateCategory,
   deleteCategory as deleteCategoryApi,
   getRules,
   createRule,
@@ -37,14 +40,31 @@ function MasterModulePage() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
 
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingRuleId, setEditingRuleId] = useState(null);
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
 
+  const [notification, setNotification] = useState({
+    open: false,
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    open: false,
+    type: null,
+    id: null,
+    title: "",
+    message: "",
+  });
+
   const [categoryForm, setCategoryForm] = useState({
     name: "",
     description: "",
+    evaluationMode: "Issue",
   });
 
   const [ruleForm, setRuleForm] = useState({
@@ -56,6 +76,79 @@ function MasterModulePage() {
     recommendation: "",
     active: true,
   });
+
+  function showNotification(type, title, message) {
+    setNotification({
+      open: true,
+      type,
+      title,
+      message,
+    });
+  }
+
+  function closeNotification() {
+    setNotification((current) => ({
+      ...current,
+      open: false,
+    }));
+  }
+
+  function normalizeValue(value) {
+    return (value || "").trim().toLowerCase();
+  }
+
+  function isDuplicateCategoryName(name, currentId = null) {
+    const normalizedName = normalizeValue(name);
+
+    return categories.some(
+      (category) =>
+        category.id !== currentId &&
+        normalizeValue(category.name) === normalizedName
+    );
+  }
+
+  function isDuplicateRule(rule, categoryId, currentId = null) {
+    const normalizedRule = normalizeValue(rule);
+
+    return rules.some(
+      (item) =>
+        item.id !== currentId &&
+        item.categoryId === categoryId &&
+        normalizeValue(item.rule) === normalizedRule
+    );
+  }
+
+  function openDeleteConfirmation(type, id, title, message) {
+    setDeleteConfirmation({
+      open: true,
+      type,
+      id,
+      title,
+      message,
+    });
+  }
+
+  function closeDeleteConfirmation() {
+    setDeleteConfirmation((current) => ({
+      ...current,
+      open: false,
+    }));
+  }
+
+  async function confirmDelete() {
+    const { type, id } = deleteConfirmation;
+
+    closeDeleteConfirmation();
+
+    if (type === "category") {
+      await performDeleteCategory(id);
+      return;
+    }
+
+    if (type === "rule") {
+      await performDeleteRule(id);
+    }
+  }
 
   useEffect(() => {
     async function loadMasterModuleData() {
@@ -72,6 +165,8 @@ function MasterModulePage() {
             id: category.id,
             name: category.name,
             description: category.description || "",
+            evaluationMode:
+              category.evaluation_mode || "Issue",
             isActive: category.is_active,
           })
         );
@@ -97,7 +192,9 @@ function MasterModulePage() {
         }
       } catch (error) {
         console.error("MASTER MODULE LOAD ERROR:", error);
-        alert(
+        showNotification(
+          "error",
+          "Unable to Load Master Module",
           error.message ||
             "Unable to load Master Module data."
         );
@@ -124,13 +221,39 @@ function MasterModulePage() {
     });
   }, [rules, selectedCategoryId, searchTerm]);
 
-  function openCategoryModal() {
+  function openCategoryModal(category = null) {
+    if (category) {
+      setEditingCategoryId(category.id);
+
+      setCategoryForm({
+        name: category.name || "",
+        description: category.description || "",
+        evaluationMode:
+          category.evaluationMode || "Issue",
+      });
+    } else {
+      setEditingCategoryId(null);
+
+      setCategoryForm({
+        name: "",
+        description: "",
+        evaluationMode: "Issue",
+      });
+    }
+
+    setShowCategoryModal(true);
+  }
+
+  function closeCategoryModal() {
+    setEditingCategoryId(null);
+
     setCategoryForm({
       name: "",
       description: "",
+      evaluationMode: "Issue",
     });
 
-    setShowCategoryModal(true);
+    setShowCategoryModal(false);
   }
 
   function openRuleModal() {
@@ -172,31 +295,118 @@ function MasterModulePage() {
       return;
     }
 
-    try {
-      const createdCategory = await createCategory(
-        categoryForm.name.trim(),
-        categoryForm.description.trim()
+    if (isDuplicateCategoryName(
+      categoryForm.name,
+      editingCategoryId
+    )) {
+      showNotification(
+        "error",
+        "Duplicate Category",
+        "This category already exists."
       );
+      return;
+    }
 
-      const newCategory = {
-        id: createdCategory.id,
-        name: createdCategory.name,
-        description: createdCategory.description || "",
-        isActive: createdCategory.is_active,
+    try {
+      const payload = {
+        name: categoryForm.name.trim(),
+        description:
+          categoryForm.description.trim(),
+        evaluation_mode:
+          categoryForm.evaluationMode,
       };
 
-      setCategories((current) => [
-        ...current,
-        newCategory,
-      ]);
+      if (editingCategoryId) {
+        const updatedCategory =
+          await updateCategory(
+            editingCategoryId,
+            payload
+          );
 
-      setSelectedCategoryId(newCategory.id);
-      setShowCategoryModal(false);
+        const updatedCategoryData = {
+          id: updatedCategory.id,
+          name: updatedCategory.name,
+          description:
+            updatedCategory.description || "",
+          evaluationMode:
+            updatedCategory.evaluation_mode ||
+            "Issue",
+          isActive:
+            updatedCategory.is_active,
+        };
+
+        setCategories((current) =>
+          current.map((category) =>
+            category.id === editingCategoryId
+              ? updatedCategoryData
+              : category
+          )
+        );
+      } else {
+        const createdCategory =
+          await createCategory(
+            categoryForm.name.trim(),
+            categoryForm.description.trim(),
+            categoryForm.evaluationMode
+          );
+
+        const newCategory = {
+          id: createdCategory.id,
+          name: createdCategory.name,
+          description:
+            createdCategory.description || "",
+          evaluationMode:
+            createdCategory.evaluation_mode ||
+            "Issue",
+          isActive:
+            createdCategory.is_active,
+        };
+
+        setCategories((current) => [
+          ...current,
+          newCategory,
+        ]);
+
+        setSelectedCategoryId(
+          newCategory.id
+        );
+      }
+
+      const wasEditing = Boolean(editingCategoryId);
+      closeCategoryModal();
+
+      showNotification(
+        "success",
+        wasEditing ? "Category Updated" : "Category Created",
+        wasEditing
+          ? "The category was updated successfully."
+          : "The category was created successfully."
+      );
     } catch (error) {
-      console.error("CREATE CATEGORY ERROR:", error);
-      alert(
-        error.message ||
-          "Unable to create category."
+      console.error(
+        editingCategoryId
+          ? "UPDATE CATEGORY ERROR:"
+          : "CREATE CATEGORY ERROR:",
+        error
+      );
+
+      const errorMessage = error.message || "";
+
+      showNotification(
+        "error",
+        errorMessage.toLowerCase().includes("duplicate") ||
+          errorMessage.toLowerCase().includes("unique")
+          ? "Duplicate Category"
+          : editingCategoryId
+            ? "Unable to Update Category"
+            : "Unable to Create Category",
+        errorMessage.toLowerCase().includes("duplicate") ||
+          errorMessage.toLowerCase().includes("unique")
+          ? "This category already exists."
+          : errorMessage ||
+              (editingCategoryId
+                ? "Unable to update category."
+                : "Unable to create category.")
       );
     }
   }
@@ -204,16 +414,37 @@ function MasterModulePage() {
   async function handleRuleSubmit(event) {
     event.preventDefault();
 
-    if (!ruleForm.rule.trim() || !selectedCategoryId) {
+    if (
+      !ruleForm.rule.trim() ||
+      !selectedCategoryId
+    ) {
+      return;
+    }
+
+    if (
+      isDuplicateRule(
+        ruleForm.rule,
+        selectedCategoryId,
+        editingRuleId
+      )
+    ) {
+      showNotification(
+        "error",
+        "Duplicate Rule",
+        "This rule already exists in the selected category."
+      );
       return;
     }
 
     const payload = {
       category_id: selectedCategoryId,
       rule: ruleForm.rule.trim(),
-      description: ruleForm.description.trim(),
-      why_it_matters: ruleForm.whyItMatters.trim(),
-      recommendation: ruleForm.recommendation.trim(),
+      description:
+        ruleForm.description.trim(),
+      why_it_matters:
+        ruleForm.whyItMatters.trim(),
+      recommendation:
+        ruleForm.recommendation.trim(),
       rule_type: ruleForm.ruleType,
       severity: ruleForm.severity,
       is_active: ruleForm.active,
@@ -231,36 +462,49 @@ function MasterModulePage() {
             item.id === editingRuleId
               ? {
                   ...item,
-                  categoryId: updatedRule.category_id,
+                  categoryId:
+                    updatedRule.category_id,
                   rule: updatedRule.rule,
                   description:
-                    updatedRule.description || "",
-                  ruleType: updatedRule.rule_type,
-                  severity: updatedRule.severity,
+                    updatedRule.description ||
+                    "",
+                  ruleType:
+                    updatedRule.rule_type,
+                  severity:
+                    updatedRule.severity,
                   whyItMatters:
-                    updatedRule.why_it_matters || "",
+                    updatedRule.why_it_matters ||
+                    "",
                   recommendation:
-                    updatedRule.recommendation || "",
-                  active: updatedRule.is_active,
+                    updatedRule.recommendation ||
+                    "",
+                  active:
+                    updatedRule.is_active,
                 }
               : item
           )
         );
       } else {
-        const createdRule = await createRule(payload);
+        const createdRule =
+          await createRule(payload);
 
         const newRule = {
           id: createdRule.id,
-          categoryId: createdRule.category_id,
+          categoryId:
+            createdRule.category_id,
           rule: createdRule.rule,
-          description: createdRule.description || "",
-          ruleType: createdRule.rule_type,
-          severity: createdRule.severity,
+          description:
+            createdRule.description || "",
+          ruleType:
+            createdRule.rule_type,
+          severity:
+            createdRule.severity,
           whyItMatters:
             createdRule.why_it_matters || "",
           recommendation:
             createdRule.recommendation || "",
-          active: createdRule.is_active,
+          active:
+            createdRule.is_active,
         };
 
         setRules((current) => [
@@ -269,8 +513,17 @@ function MasterModulePage() {
         ]);
       }
 
+      const wasEditing = Boolean(editingRuleId);
       setEditingRuleId(null);
       setShowRuleModal(false);
+
+      showNotification(
+        "success",
+        wasEditing ? "Rule Updated" : "Rule Created",
+        wasEditing
+          ? "The rule was updated successfully."
+          : "The rule was created successfully."
+      );
     } catch (error) {
       console.error(
         editingRuleId
@@ -279,16 +532,29 @@ function MasterModulePage() {
         error
       );
 
-      alert(
-        error.message ||
-          (editingRuleId
-            ? "Unable to update rule."
-            : "Unable to create rule.")
+      const errorMessage = error.message || "";
+      const isDuplicate =
+        errorMessage.toLowerCase().includes("duplicate") ||
+        errorMessage.toLowerCase().includes("unique");
+
+      showNotification(
+        "error",
+        isDuplicate
+          ? "Duplicate Rule"
+          : editingRuleId
+            ? "Unable to Update Rule"
+            : "Unable to Create Rule",
+        isDuplicate
+          ? "This rule already exists in the selected category."
+          : errorMessage ||
+              (editingRuleId
+                ? "Unable to update rule."
+                : "Unable to create rule.")
       );
     }
   }
 
-  async function deleteCategory(categoryId) {
+  function deleteCategory(categoryId) {
     const category = categories.find(
       (item) => item.id === categoryId
     );
@@ -297,51 +563,106 @@ function MasterModulePage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Delete category "${category.name}" and its rules?`
+    const categoryRuleCount = rules.filter(
+      (rule) =>
+        rule.categoryId === categoryId
+    ).length;
+
+    openDeleteConfirmation(
+      "category",
+      categoryId,
+      "Delete Category?",
+      `Delete category "${category.name}" and all ${categoryRuleCount} rule${
+        categoryRuleCount === 1 ? "" : "s"
+      } inside it?`
+    );
+  }
+
+  async function performDeleteCategory(categoryId) {
+    const category = categories.find(
+      (item) => item.id === categoryId
     );
 
-    if (!confirmed) {
+    if (!category) {
       return;
     }
 
     try {
       await deleteCategoryApi(categoryId);
 
-      const remainingCategories = categories.filter(
-        (item) => item.id !== categoryId
-      );
+      const remainingCategories =
+        categories.filter(
+          (item) => item.id !== categoryId
+        );
 
-      setCategories(remainingCategories);
+      setCategories(
+        remainingCategories
+      );
 
       setRules((current) =>
         current.filter(
-          (rule) => rule.categoryId !== categoryId
+          (rule) =>
+            rule.categoryId !== categoryId
         )
       );
 
-      if (remainingCategories.length > 0) {
-        setSelectedCategoryId(
-          remainingCategories[0].id
-        );
-      } else {
-        setSelectedCategoryId(null);
+      if (
+        selectedCategoryId === categoryId
+      ) {
+        if (remainingCategories.length > 0) {
+          setSelectedCategoryId(
+            remainingCategories[0].id
+          );
+        } else {
+          setSelectedCategoryId(null);
+        }
+
+        setSearchTerm("");
       }
+
+      showNotification(
+        "success",
+        "Category Deleted",
+        `"${category.name}" was deleted successfully.`
+      );
     } catch (error) {
-      console.error("DELETE CATEGORY ERROR:", error);
-      alert(
+      console.error(
+        "DELETE CATEGORY ERROR:",
+        error
+      );
+
+      showNotification(
+        "error",
+        "Unable to Delete Category",
         error.message ||
           "Unable to delete category."
       );
     }
   }
 
-  async function deleteRule(ruleId) {
-    const confirmed = window.confirm(
-      "Delete this rule?"
+  function deleteRule(ruleId) {
+    const rule = rules.find(
+      (item) => item.id === ruleId
     );
 
-    if (!confirmed) {
+    if (!rule) {
+      return;
+    }
+
+    openDeleteConfirmation(
+      "rule",
+      ruleId,
+      "Delete Rule?",
+      `Delete the rule "${rule.rule}"?`
+    );
+  }
+
+  async function performDeleteRule(ruleId) {
+    const rule = rules.find(
+      (item) => item.id === ruleId
+    );
+
+    if (!rule) {
       return;
     }
 
@@ -353,9 +674,21 @@ function MasterModulePage() {
           (rule) => rule.id !== ruleId
         )
       );
+
+      showNotification(
+        "success",
+        "Rule Deleted",
+        `"${rule.rule}" was deleted successfully.`
+      );
     } catch (error) {
-      console.error("DELETE RULE ERROR:", error);
-      alert(
+      console.error(
+        "DELETE RULE ERROR:",
+        error
+      );
+
+      showNotification(
+        "error",
+        "Unable to Delete Rule",
         error.message ||
           "Unable to delete rule."
       );
@@ -423,14 +756,14 @@ function MasterModulePage() {
             <span>Admin</span>
 
             <ChevronDown size={17} />
-
           </button>
 
           {showProfileMenu && (
             <div className="master-profile-menu">
 
               <div className="master-profile-email">
-                {adminEmail || "Admin account"}
+                {adminEmail ||
+                  "Admin account"}
               </div>
 
               <button
@@ -544,7 +877,9 @@ function MasterModulePage() {
 
               <button
                 className="primary-button"
-                onClick={openCategoryModal}
+                onClick={() =>
+                  openCategoryModal()
+                }
               >
                 <Plus size={18} />
                 Add Category
@@ -564,33 +899,69 @@ function MasterModulePage() {
                   ).length;
 
                 return (
-                  <button
+                  <div
                     key={category.id}
-                    type="button"
                     className={`category-item ${
                       selectedCategoryId ===
                       category.id
                         ? "selected"
                         : ""
                     }`}
-                    onClick={() => {
-                      setSelectedCategoryId(
-                        category.id
-                      );
-
-                      setSearchTerm("");
-                    }}
                   >
 
-                    <span>
-                      {category.name}
-                    </span>
+                    <button
+                      type="button"
+                      className="category-select-button"
+                      onClick={() => {
+                        setSelectedCategoryId(
+                          category.id
+                        );
 
-                    <span className="category-count">
-                      {ruleCount}
-                    </span>
+                        setSearchTerm("");
+                      }}
+                    >
 
-                  </button>
+                      <span>
+                        {category.name}
+                      </span>
+
+                      <span className="category-count">
+                        {ruleCount}
+                      </span>
+
+                    </button>
+
+                    <div className="category-actions">
+
+                      <button
+                        type="button"
+                        className="category-action-button edit"
+                        title="Edit category"
+                        onClick={() =>
+                          openCategoryModal(
+                            category
+                          )
+                        }
+                      >
+                        <Pencil size={16} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="category-action-button delete"
+                        title="Delete category"
+                        onClick={() =>
+                          deleteCategory(
+                            category.id
+                          )
+                        }
+                      >
+                        <Trash2 size={16} />
+                      </button>
+
+                    </div>
+
+                  </div>
                 );
               })}
 
@@ -763,7 +1134,9 @@ function MasterModulePage() {
                                 className="icon-button edit"
                                 title="Edit rule"
                                 onClick={() =>
-                                  handleEditRule(rule)
+                                  handleEditRule(
+                                    rule
+                                  )
                                 }
                               >
                                 <Pencil size={18} />
@@ -808,7 +1181,7 @@ function MasterModulePage() {
       </main>
 
       {/* =========================
-          ADD CATEGORY MODAL
+          ADD / EDIT CATEGORY MODAL
       ========================= */}
 
       {showCategoryModal && (
@@ -820,14 +1193,16 @@ function MasterModulePage() {
             <div className="modal-header">
 
               <h2>
-                Add New Category
+                {editingCategoryId
+                  ? "Edit Category"
+                  : "Add New Category"}
               </h2>
 
               <button
                 type="button"
                 className="modal-close"
-                onClick={() =>
-                  setShowCategoryModal(false)
+                onClick={
+                  closeCategoryModal
                 }
               >
                 <X size={22} />
@@ -836,7 +1211,9 @@ function MasterModulePage() {
             </div>
 
             <form
-              onSubmit={handleCategorySubmit}
+              onSubmit={
+                handleCategorySubmit
+              }
             >
 
               <div className="form-field">
@@ -904,13 +1281,64 @@ function MasterModulePage() {
 
               </div>
 
+              <div className="form-field">
+
+                <label>
+                  Evaluation Mode{" "}
+                  <span>*</span>
+                </label>
+
+                <select
+                  value={
+                    categoryForm.evaluationMode
+                  }
+                  onChange={(event) =>
+                    setCategoryForm(
+                      (current) => ({
+                        ...current,
+                        evaluationMode:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  required
+                >
+
+                  <option value="Issue">
+                    Issue
+                  </option>
+
+                  <option value="Check">
+                    Check
+                  </option>
+
+                </select>
+
+                <div className="evaluation-mode-help">
+
+                  <strong>
+                    Issue:
+                  </strong>{" "}
+                  Rule match = Fail
+
+                  <br />
+
+                  <strong>
+                    Check:
+                  </strong>{" "}
+                  Rule match = Pass
+
+                </div>
+
+              </div>
+
               <div className="modal-footer">
 
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() =>
-                    setShowCategoryModal(false)
+                  onClick={
+                    closeCategoryModal
                   }
                 >
                   Cancel
@@ -920,7 +1348,9 @@ function MasterModulePage() {
                   type="submit"
                   className="primary-button"
                 >
-                  Save Category
+                  {editingCategoryId
+                    ? "Update Category"
+                    : "Save Category"}
                 </button>
 
               </div>
@@ -964,7 +1394,9 @@ function MasterModulePage() {
 
             </div>
 
-            <form onSubmit={handleRuleSubmit}>
+            <form
+              onSubmit={handleRuleSubmit}
+            >
 
               <div className="rule-form-grid">
 
@@ -1098,6 +1530,7 @@ function MasterModulePage() {
                         )
                       }
                     >
+
                       <option value="Keyword">
                         Keyword
                       </option>
@@ -1109,6 +1542,7 @@ function MasterModulePage() {
                       <option value="Presence">
                         Presence
                       </option>
+
                     </select>
 
                   </div>
@@ -1134,6 +1568,7 @@ function MasterModulePage() {
                         )
                       }
                     >
+
                       <option value="Low">
                         Low
                       </option>
@@ -1145,6 +1580,7 @@ function MasterModulePage() {
                       <option value="High">
                         High
                       </option>
+
                     </select>
 
                   </div>
@@ -1219,6 +1655,73 @@ function MasterModulePage() {
 
         </div>
 
+      )}
+
+      {notification.open && (
+        <div className="master-notification-overlay">
+          <div
+            className={`master-notification-card ${notification.type}`}
+            role="alertdialog"
+            aria-modal="true"
+          >
+            <div className="master-notification-icon">
+              {notification.type === "success" ? (
+                <CheckCircle2 size={28} />
+              ) : (
+                <AlertCircle size={28} />
+              )}
+            </div>
+
+            <div className="master-notification-content">
+              <h3>{notification.title}</h3>
+              <p>{notification.message}</p>
+            </div>
+
+            <button
+              type="button"
+              className="master-notification-close"
+              onClick={closeNotification}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmation.open && (
+        <div className="master-notification-overlay">
+          <div
+            className="master-delete-confirm-card"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="master-delete-confirm-icon">
+              <Trash2 size={26} />
+            </div>
+
+            <div className="master-notification-content">
+              <h3>{deleteConfirmation.title}</h3>
+              <p>{deleteConfirmation.message}</p>
+            </div>
+
+            <div className="master-delete-confirm-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={closeDeleteConfirmation}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="master-delete-confirm-button"
+                onClick={confirmDelete}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
