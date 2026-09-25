@@ -1,0 +1,470 @@
+﻿import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  FileText,
+  FileType2,
+  File,
+  UploadCloud,
+} from "lucide-react";
+
+import StatusPill from "../components/StatusPill";
+import ManualRequirementModal from "../components/ManualRequirementModal";
+
+import {
+  extractRequirements,
+  extractSourceText,
+  listSources,
+  uploadSource,
+} from "../../../api/requirementsApi";
+
+import { useToast } from "../../../hooks/useToast";
+import "../styles/requirements.css";
+
+function formatDate(value) {
+  if (!value) return "â€”";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "â€”";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function getFileExtension(source) {
+  const filename = source?.original_filename || "";
+
+  const extension = filename
+    .split(".")
+    .pop()
+    ?.toUpperCase();
+
+  return extension || source?.source_type?.toUpperCase() || "SOURCE";
+}
+
+function getFileIcon(source) {
+  const type = getFileExtension(source);
+
+  if (type === "PDF") {
+    return <FileText size={22} />;
+  }
+
+  if (type === "DOCX" || type === "DOC") {
+    return <FileType2 size={22} />;
+  }
+
+  if (type === "TXT") {
+    return <File size={22} />;
+  }
+
+  return <FileText size={22} />;
+}
+
+function SourcesPanel({ projectId }) {
+  const { showToast } = useToast();
+  const fileInputRef = useRef(null);
+
+  const [sources, setSources] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
+
+  const fetchSources = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+
+    try {
+      const data = await listSources(projectId);
+      setSources(data.items || []);
+    } catch (err) {
+      setLoadError(
+        err.message || "Failed to load sources."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchSources();
+  }, [fetchSources]);
+
+  function openFilePicker(type) {
+    setUploadMenuOpen(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.accept = type;
+      fileInputRef.current.click();
+    }
+  }
+  async function handleFileChange(event) {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file) return;
+
+    setUploading(true);
+    setLoadError("");
+
+    try {
+      // 1. Upload document
+      const uploadedSource = await uploadSource(
+        projectId,
+        file
+      );
+
+      const sourceId =
+        uploadedSource?.source_id ||
+        uploadedSource?.id;
+
+      if (!sourceId) {
+        throw new Error(
+          "Document uploaded, but the source ID was not returned."
+        );
+      }
+
+      showToast(
+        "Document uploaded. Extracting text...",
+        "success"
+      );
+
+      await fetchSources();
+
+      // 2. Extract text
+      await extractSourceText(
+        projectId,
+        sourceId
+      );
+
+      showToast(
+        "Text extracted. Finding requirements...",
+        "success"
+      );
+
+      await fetchSources();
+
+      // 3. Extract requirements
+      const result = await extractRequirements(
+        projectId,
+        sourceId
+      );
+
+      showToast(
+        `${result?.requirements_created || 0} requirement(s) extracted successfully.`,
+        "success"
+      );
+
+      await fetchSources();
+    } catch (err) {
+      showToast(
+        err.message || "Document processing failed.",
+        "error"
+      );
+
+      await fetchSources();
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="sources-panel">
+
+      {/* =====================================================
+          DOCUMENT HEADER
+          ===================================================== */}
+
+      <div className="sources-panel-header">
+
+        <div>
+          <h2>Uploaded Documents</h2>
+
+          <p>
+            Upload or add documents from different sources.
+            Requirements will be extracted automatically.
+          </p>
+        </div>
+
+        <div className="sources-actions">
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setManualOpen(true)}
+            disabled={uploading}
+          >
+            Add Manually
+          </button>
+
+          <div className="upload-menu-wrapper">
+  <button
+    type="button"
+    className="btn btn-primary upload-menu-button"
+    onClick={() => setUploadMenuOpen((open) => !open)}
+    disabled={uploading}
+  >
+    <UploadCloud size={17} />
+    {uploading ? "Processing..." : "Upload Documents"}
+    <span className="upload-menu-chevron">▾</span>
+  </button>
+
+  {uploadMenuOpen && !uploading && (
+    <div className="upload-menu">
+      <button
+        type="button"
+        onClick={() => openFilePicker(".pdf")}
+      >
+        <FileText size={17} />
+        <span>Upload PDF</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openFilePicker(".docx,.doc")}
+      >
+        <FileType2 size={17} />
+        <span>Upload DOCX</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => openFilePicker(".txt")}
+      >
+        <File size={17} />
+        <span>Upload TXT</span>
+      </button>
+    </div>
+  )}
+</div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.docx,.txt"
+            hidden
+            onChange={handleFileChange}
+          />
+
+        </div>
+
+      </div>
+
+      {/* =====================================================
+          LOADING
+          ===================================================== */}
+
+      {loading && (
+        <div className="sources-loading">
+          <div className="sources-loading-spinner" />
+          <span>Loading documents...</span>
+        </div>
+      )}
+
+      {/* =====================================================
+          ERROR
+          ===================================================== */}
+
+      {!loading && loadError && (
+        <div className="table-state table-state-error">
+          <p>{loadError}</p>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={fetchSources}
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
+      {/* =====================================================
+          EMPTY STATE
+          ===================================================== */}
+
+      {!loading &&
+        !loadError &&
+        sources.length === 0 && (
+          <div className="sources-empty">
+            <FileText size={34} />
+
+            <h3>No documents uploaded</h3>
+
+            <p>
+              Upload a document to start extracting
+              requirements.
+            </p>
+          </div>
+        )}
+
+      {/* =====================================================
+          DOCUMENT TABLE
+          ===================================================== */}
+
+      {!loading &&
+        !loadError &&
+        sources.length > 0 && (
+          <div className="sources-table-wrapper">
+
+            <div className="sources-table">
+
+              {/* Header */}
+              <div className="sources-table-header">
+
+                <div className="sources-col-number">
+                  #
+                </div>
+
+                <div className="sources-col-name">
+                  Document Name
+                </div>
+
+                <div className="sources-col-type">
+                  Type
+                </div>
+
+                <div className="sources-col-date">
+                  Uploaded On
+                </div>
+
+                <div className="sources-col-status">
+                  Status
+                </div>
+
+              </div>
+
+              {/* Rows */}
+              {sources.map((source, index) => {
+
+                const filename =
+                  source.original_filename ||
+                  "Manual entry";
+
+                const type =
+                  getFileExtension(source);
+
+                const uploadedDate =
+                  source.created_at ||
+                  source.uploaded_at ||
+                  source.created_on;
+
+                return (
+                  <div
+                    key={source.id}
+                    className="sources-table-row"
+                  >
+
+                    {/* Number */}
+                    <div className="sources-col-number">
+                      {index + 1}
+                    </div>
+
+                    {/* Document */}
+                    <div className="sources-col-name">
+
+                      <div className="source-file-info">
+
+                        <div
+                          className={`source-file-icon source-file-icon-${type.toLowerCase()}`}
+                        >
+                          {getFileIcon(source)}
+                        </div>
+
+                        <div>
+                          <strong>
+                            {filename}
+                          </strong>
+
+                          {source.extraction_error && (
+                            <div className="source-error">
+                              {source.extraction_error}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                    {/* Type */}
+                    <div className="sources-col-type">
+                      <span
+                        className={`source-type source-type-${type.toLowerCase()}`}
+                      >
+                        {type}
+                      </span>
+                    </div>
+
+                    {/* Date */}
+                    <div className="sources-col-date">
+                      {formatDate(uploadedDate)}
+                    </div>
+
+                    {/* Status */}
+                    <div className="sources-col-status">
+                      <StatusPill
+                        status={
+                          source.processing_status
+                        }
+                      />
+                    </div>
+
+                  </div>
+                );
+              })}
+
+            </div>
+
+          </div>
+        )}
+
+      {/* =====================================================
+          INFORMATION
+          ===================================================== */}
+
+      <div className="sources-info-box">
+        <FileText size={20} />
+
+        <div>
+          <strong>
+            Automatic requirement extraction
+          </strong>
+
+          <p>
+            Once a document is uploaded, ReqIntel
+            automatically extracts its text and identifies
+            project requirements.
+          </p>
+        </div>
+      </div>
+
+      {/* =====================================================
+          MANUAL REQUIREMENT MODAL
+          ===================================================== */}
+
+      <ManualRequirementModal
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        projectId={projectId}
+        onCreated={() =>
+          showToast(
+            "You can find it in the Requirements tab.",
+            "success"
+          )
+        }
+      />
+
+    </div>
+  );
+}
+
+export default SourcesPanel;
+
+

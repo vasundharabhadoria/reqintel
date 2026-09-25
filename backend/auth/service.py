@@ -1,3 +1,6 @@
+import truststore
+truststore.inject_into_ssl()
+
 from supabase import Client
 from supabase_auth.errors import AuthApiError
 
