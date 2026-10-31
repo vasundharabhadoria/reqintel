@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, Folder, FileText, GitBranch, History } from "lucide-react";
 
 import AppShell from "../../../components/layout/AppShell";
@@ -10,8 +10,8 @@ import StatusBadge from "../../projects/components/StatusBadge";
 import SourcesPanel from "../../requirements/pages/SourcesPanel";
 import RequirementsPanel from "../../requirements/pages/RequirementsPanel";
 import RequirementDetailPanel from "../../requirements/pages/RequirementDetailPanel";
+import VersionsPanel from "../../versions/pages/VersionsPanel";
 import "../../projects/styles/projects.css";
-
 function ProjectWorkspacePage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -21,7 +21,10 @@ function ProjectWorkspacePage() {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [activeTab, setActiveTab] = useState("documents");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(
+    searchParams.get("tab") === "versions" ? "versions" : "documents"
+  );
   const [selectedRequirementId, setSelectedRequirementId] = useState(null);
 
   const fetchProject = useCallback(async () => {
@@ -54,14 +57,17 @@ function ProjectWorkspacePage() {
   }, [fetchProject]);
 
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setSelectedRequirementId(null);
+  if (tab === "traceability") {
+    return;
+  }
 
-    if (tab === "overview") {
-      navigate(`/projects/${projectId}`);
-    }
-  };
+  setActiveTab(tab);
+  setSelectedRequirementId(null);
 
+  if (tab === "overview") {
+    navigate(`/projects/${projectId}`);
+  }
+};
   return (
     <AppShell active="projects">
       <button
@@ -135,15 +141,15 @@ function ProjectWorkspacePage() {
   </button>
 
   <button
-    type="button"
-    className={`workspace-tab ${
-      activeTab === "traceability" ? "active" : ""
-    }`}
-    onClick={() => handleTabChange("traceability")}
-  >
-    <GitBranch size={20} />
-    <span>Traceability</span>
-  </button>
+  type="button"
+  className={`rule-project-tab ${
+    activeTab === "traceability" ? "active" : ""
+  }`}
+  onClick={() => navigate(`/projects/${projectId}/traceability`)}
+>
+  <GitBranch size={18} />
+  <span>Traceability</span>
+</button>
 
   <button
     type="button"
@@ -184,19 +190,8 @@ function ProjectWorkspacePage() {
               onBack={() => setSelectedRequirementId(null)}
             />
           )}
-
-          {activeTab === "traceability" && (
-            <div className="workspace-placeholder">
-              <h2>Traceability</h2>
-              <p>Traceability workspace coming soon.</p>
-            </div>
-          )}
-
           {activeTab === "versions" && (
-            <div className="workspace-placeholder">
-              <h2>Versions</h2>
-              <p>Versions workspace coming soon.</p>
-            </div>
+            <VersionsPanel projectId={projectId} />
           )}
         </div>
       )}

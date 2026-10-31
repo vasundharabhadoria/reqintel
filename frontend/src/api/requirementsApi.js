@@ -9,7 +9,7 @@ export function listSources(projectId) {
 export function uploadSource(projectId, file) {
   const formData = new FormData();
   formData.append("file", file);
- 
+
   // apiRequest always sets Content-Type: application/json; override it here
   // so the browser can set the multipart boundary itself.
   return apiRequest(`/api/v1/projects/${projectId}/requirements/sources/upload`, {
@@ -44,11 +44,21 @@ export function extractRequirements(projectId, sourceId) {
 
 export function listRequirements(projectId, { status, search, sourceId } = {}) {
   const params = new URLSearchParams();
-  if (status && status !== "all") params.set("status", status);
-  if (search) params.set("search", search);
-  if (sourceId) params.set("source_id", sourceId);
+
+  if (status && status !== "all") {
+    params.set("status", status);
+  }
+
+  if (search) {
+    params.set("search", search);
+  }
+
+  if (sourceId) {
+    params.set("source_id", sourceId);
+  }
 
   const query = params.toString();
+
   return apiRequest(
     `/api/v1/projects/${projectId}/requirements${query ? `?${query}` : ""}`,
     { method: "GET" }
@@ -69,7 +79,11 @@ export function listVersions(projectId, requirementId) {
   );
 }
 
-export function createVersion(projectId, requirementId, { requirementText, changeSummary }) {
+export function createVersion(
+  projectId,
+  requirementId,
+  { requirementText, changeSummary }
+) {
   return apiRequest(
     `/api/v1/projects/${projectId}/requirements/${requirementId}/versions`,
     {
@@ -81,6 +95,7 @@ export function createVersion(projectId, requirementId, { requirementText, chang
     }
   );
 }
+
 export function analyzeRequirements(projectId) {
   return apiRequest(
     `/api/v1/projects/${projectId}/requirements/analyze`,
@@ -89,6 +104,16 @@ export function analyzeRequirements(projectId) {
     }
   );
 }
+
+export function getSavedProjectAnalysis(projectId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/analysis`,
+    {
+      method: "GET",
+    }
+  );
+}
+
 export function deleteSource(projectId, sourceId) {
   return apiRequest(
     `/api/v1/projects/${projectId}/requirements/sources/${sourceId}`,
@@ -96,12 +121,112 @@ export function deleteSource(projectId, sourceId) {
   );
 }
 
-
-
 export function getSourceFile(projectId, sourceId) {
   return apiRequest(
     `/api/v1/projects/${projectId}/requirements/sources/${sourceId}/file`,
     { method: "GET", responseType: "blob" }
   );
 }
+export function acceptSuggestion(projectId, requirementId, suggestionId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/suggestions/${suggestionId}/accept`,
+    { method: "POST" }
+  );
+}
 
+export function rejectSuggestion(projectId, requirementId, suggestionId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/suggestions/${suggestionId}/reject`,
+    { method: "POST" }
+  );
+}
+
+export function approveRequirement(projectId, requirementId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/approve`,
+    { method: "POST" }
+  );
+}
+
+export function waiveIssue(projectId, requirementId, ruleName, reason = "") {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/waivers`,
+    {
+      method: "POST",
+      body: JSON.stringify({ rule_name: ruleName, reason }),
+    }
+  );
+}
+
+export function removeIssueWaiver(projectId, requirementId, ruleName) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/waivers?rule_name=${encodeURIComponent(ruleName)}`,
+    { method: "DELETE" }
+  );
+}
+
+export function rejectRequirement(projectId, requirementId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/reject`,
+    { method: "POST" }
+  );
+}
+
+export function listTraceabilityLinks(projectId, requirementId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/traceability`,
+    { method: "GET" }
+  );
+}
+export function listProjectTraceabilityLinks(projectId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/traceability`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+
+export function createTraceabilityLink(
+  projectId,
+  requirementId,
+  { sourceRequirementId, targetRequirementId, linkType }
+) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/traceability`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        source_requirement_id:
+          sourceRequirementId || requirementId,
+        target_requirement_id: targetRequirementId,
+        link_type: linkType,
+      }),
+    }
+  );
+}
+
+export function listTraceabilitySuggestions(projectId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/traceability/suggestions`
+  );
+}
+
+export function analyzeTraceabilityImpact(projectId, requirementId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/impact/analyze`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export function getTraceabilityImpact(projectId, requirementId) {
+  return apiRequest(
+    `/api/v1/projects/${projectId}/requirements/${requirementId}/impact`,
+    {
+      method: "GET",
+    }
+  );
+}

@@ -1,12 +1,11 @@
 from uuid import UUID
-
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from pydantic import BaseModel
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.schemas import UserResponse
 from core.dependencies import get_current_user
 from db.session import get_db
-from fastapi import HTTPException
 from models.requirement import (
     ExtractedRequirementSummary,
     ManualRequirementCreate,
@@ -18,6 +17,9 @@ from models.requirement import (
     RequirementVersionCreate,
     RequirementVersionListResponse,
     RequirementVersionResponse,
+    TraceabilityLinkCreate,
+    TraceabilityLinkListResponse,
+    TraceabilityLinkResponse,
 )
 from services.requirement_service import RequirementService
 
@@ -77,8 +79,6 @@ async def upload_source(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RequirementSourceResponse:
-    """Upload a PDF/DOCX/TXT requirement source document."""
-
     service = RequirementService(db)
 
     return await service.upload_source(
@@ -99,8 +99,6 @@ async def create_manual_requirement(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RequirementResponse:
-    """Create a requirement manually, without document extraction."""
-
     service = RequirementService(db)
 
     return await service.create_manual_requirement(
@@ -120,8 +118,6 @@ async def extract_source_text(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RequirementSourceResponse:
-    """Extract raw text from an uploaded document source."""
-
     service = RequirementService(db)
 
     return await service.extract_source_text(
@@ -142,8 +138,6 @@ async def extract_requirements(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ExtractedRequirementSummary:
-    """Run rule-based requirement identification."""
-
     service = RequirementService(db)
 
     try:
@@ -157,6 +151,7 @@ async def extract_requirements(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         )
+
 
 @router.get(
     "",
@@ -205,6 +200,169 @@ async def analyze_project_requirements(
         project_id,
     )
 
+
+@router.get("/analysis")
+async def get_saved_project_analysis(
+    project_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.get_saved_project_analysis(
+        UUID(current_user.id),
+        project_id,
+    )
+
+
+@router.post(
+    "/{requirement_id}/approve",
+)
+async def approve_requirement(
+    project_id: UUID,
+    requirement_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.approve_requirement(
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+    )
+
+
+@router.post(
+    "/{requirement_id}/reject",
+)
+async def reject_requirement(
+    project_id: UUID,
+    requirement_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.reject_requirement(
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+    )
+
+
+class IssueWaiverRequest(BaseModel):
+    rule_name: str
+    reason: str | None = None
+
+
+@router.post(
+    "/{requirement_id}/waivers",
+)
+async def waive_issue(
+    project_id: UUID,
+    requirement_id: UUID,
+    payload: IssueWaiverRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.set_issue_waiver(
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+        payload.rule_name,
+        True,
+        payload.reason,
+    )
+
+
+@router.delete(
+    "/{requirement_id}/waivers",
+)
+async def remove_issue_waiver(
+    project_id: UUID,
+    requirement_id: UUID,
+    rule_name: str,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.set_issue_waiver(
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+        rule_name,
+        False,
+    )
+
+
+@router.post(
+    "/{requirement_id}/suggestions/{suggestion_id}/accept",
+)
+async def accept_suggestion(
+    project_id: UUID,
+    requirement_id: UUID,
+    suggestion_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.accept_ai_suggestion(
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+        suggestion_id,
+    )
+
+
+@router.post(
+    "/{requirement_id}/suggestions/{suggestion_id}/reject",
+)
+async def reject_suggestion(
+    project_id: UUID,
+    requirement_id: UUID,
+    suggestion_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    return await service.reject_ai_suggestion(
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+        suggestion_id,
+    )
+
+@router.get(
+    "/traceability",
+    response_model=TraceabilityLinkListResponse,
+)
+async def list_project_traceability_links(
+    project_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TraceabilityLinkListResponse:
+    service = RequirementService(db)
+
+    items = await service.list_project_traceability_links(
+        UUID(current_user.id),
+        project_id,
+    )
+
+    validated_items = [
+        TraceabilityLinkResponse.model_validate(item)
+        for item in items
+    ]
+
+    return TraceabilityLinkListResponse(
+        total=len(validated_items),
+        items=validated_items,
+    )
 
 @router.get(
     "/{requirement_id}",
@@ -269,13 +427,93 @@ async def list_versions(
         total=len(items),
         items=items,
     )
-@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+
+@router.post(
+    "/{requirement_id}/traceability",
+    response_model=TraceabilityLinkResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_traceability_link(
+    project_id: UUID,
+    requirement_id: UUID,
+    payload: TraceabilityLinkCreate,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TraceabilityLinkResponse:
+    service = RequirementService(db)
+
+    try:
+        result = await service.create_traceability_link(
+            UUID(current_user.id),
+            project_id,
+            requirement_id,
+            payload.target_requirement_id,
+            payload.link_type,
+        )
+        return TraceabilityLinkResponse.model_validate(result)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+@router.get(
+    "/traceability/suggestions",
+)
+async def suggest_traceability_links(
+    project_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = RequirementService(db)
+
+    suggestions = await service.suggest_traceability_links(
+        UUID(current_user.id),
+        project_id,
+    )
+
+    return {
+        "total": len(suggestions),
+        "items": suggestions,
+    }
+
+
+@router.get(
+    "/{requirement_id}/traceability",
+    response_model=TraceabilityLinkListResponse,
+)
+async def list_traceability_links(
+    project_id: UUID,
+    requirement_id: UUID,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TraceabilityLinkListResponse:
+    service = RequirementService(db)
+
+    items = await service.list_traceability_links(
+        UUID(current_user.id),
+        project_id,
+        requirement_id,
+    )
+
+    validated_items = [
+        TraceabilityLinkResponse.model_validate(item)
+        for item in items
+    ]
+
+    return TraceabilityLinkListResponse(
+        total=len(validated_items),
+        items=validated_items,
+    )
+@router.delete(
+    "/sources/{source_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_source(
     project_id: UUID,
     source_id: UUID,
-    current_user=Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> None:
     service = RequirementService(db)
 
     await service.delete_source(
@@ -283,5 +521,3 @@ async def delete_source(
         project_id=project_id,
         source_id=source_id,
     )
-
-    return None

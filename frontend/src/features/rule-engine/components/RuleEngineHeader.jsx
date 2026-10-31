@@ -5,18 +5,24 @@ import {
   GitBranch,
   History,
 } from "lucide-react";
-
+import { useNavigate, useParams } from "react-router-dom";
 import StatusBadge from "../../projects/components/StatusBadge";
 
-function RuleEngineHeader({ project, projectLoading }) {
+function RuleEngineHeader({
+  project,
+  projectLoading,
+  repositoryVersion,
+  activeTab = "requirements",
+}) {
+  const navigate = useNavigate();
+  const { projectId } = useParams();
+
   const handleNoNavigation = (event) => {
     event.preventDefault();
   };
 
   return (
     <div className="rule-project-header">
-
-      {/* PROJECT NAME + STATUS */}
       <div className="rule-project-title-row">
         {projectLoading ? (
           <h1>Loading project...</h1>
@@ -27,17 +33,21 @@ function RuleEngineHeader({ project, projectLoading }) {
             {project?.status && (
               <StatusBadge status={project.status} />
             )}
+
+            {repositoryVersion && (
+              <span className="rule-repository-version">
+                Active · Repository Version {repositoryVersion}
+              </span>
+            )}
           </>
         )}
       </div>
 
-      {/* PROJECT TABS */}
       <div className="rule-project-tabs">
-
         <button
           type="button"
-          className="rule-project-tab"
-          onClick={handleNoNavigation}
+          className={`rule-project-tab ${activeTab === "overview" ? "active" : ""}`}
+          onClick={() => navigate(`/projects/${projectId}`)}
         >
           <LayoutDashboard size={18} />
           <span>Overview</span>
@@ -54,8 +64,8 @@ function RuleEngineHeader({ project, projectLoading }) {
 
         <button
           type="button"
-          className="rule-project-tab active"
-          onClick={handleNoNavigation}
+          className={`rule-project-tab ${activeTab === "requirements" ? "active" : ""}`}
+          onClick={() => navigate(`/projects/${projectId}/rule-engine`)}
         >
           <FileText size={18} />
           <span>Requirements</span>
@@ -63,8 +73,8 @@ function RuleEngineHeader({ project, projectLoading }) {
 
         <button
           type="button"
-          className="rule-project-tab"
-          onClick={handleNoNavigation}
+          className={`rule-project-tab ${activeTab === "traceability" ? "active" : ""}`}
+          onClick={() => navigate(`/projects/${projectId}/traceability`)}
         >
           <GitBranch size={18} />
           <span>Traceability</span>
@@ -73,12 +83,11 @@ function RuleEngineHeader({ project, projectLoading }) {
         <button
           type="button"
           className="rule-project-tab"
-          onClick={handleNoNavigation}
+          onClick={() => navigate(`/projects/${projectId}?tab=versions`)}
         >
           <History size={18} />
           <span>Versions</span>
         </button>
-
       </div>
     </div>
   );

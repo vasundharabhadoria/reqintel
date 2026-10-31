@@ -32,3 +32,6 @@ dist/
 
 # Extra env variants
 .env.*.local
+
+# Node modules
+node_modules/

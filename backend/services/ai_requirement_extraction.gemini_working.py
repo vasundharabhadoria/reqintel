@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from google import genai
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_huggingface import ChatHuggingFace,HuggingFaceEndpoint
 
 
 load_dotenv(override=True)

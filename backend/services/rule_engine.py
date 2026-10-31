@@ -12,6 +12,7 @@ def _finding(
     severity=None,
     category=None,
     rules=None,
+    evaluation_mode=None,
 ):
     return {
         "rule_name": rule_name,
@@ -23,6 +24,7 @@ def _finding(
         "recommendation": recommendation,
         "category": category,
         "rules": rules or [],
+        "evaluation_mode": evaluation_mode,
     }
 
 
@@ -441,86 +443,7 @@ def _build_category_finding(
         severity=severity,
         category=category_name,
         rules=matched_rules,
-    )
-
-
-def _check_complete_requirement(
-    lower_text,
-    actor_rules,
-    action_rules,
-):
-    """
-    Structural requirement completeness check.
-
-    Actor and Action definitions come from the
-    Master Module instead of being hardcoded here.
-    """
-
-    if not lower_text:
-
-        return _finding(
-            "Complete Requirement",
-            False,
-            "No requirement text was provided.",
-            "An empty requirement cannot be implemented or tested.",
-            "Add a clear description of the required system behavior.",
-            "High",
-        )
-
-    words = lower_text.split()
-
-    has_actor = any(
-        _rule_matches(lower_text, rule)
-        for rule in actor_rules
-    )
-
-    has_action = any(
-        _rule_matches(lower_text, rule)
-        for rule in action_rules
-    )
-
-    enough_detail = len(words) >= 5
-
-    if (
-        enough_detail
-        and has_actor
-        and has_action
-    ):
-        return _finding(
-            "Complete Requirement",
-            True,
-            "The requirement contains a clear actor, action, and sufficient detail.",
-            "Complete requirements reduce assumptions during implementation and testing.",
-            "No action is required.",
-            "Low",
-        )
-
-    missing = []
-
-    if not enough_detail:
-        missing.append(
-            "more detail"
-        )
-
-    if not has_actor:
-        missing.append(
-            "a clear actor"
-        )
-
-    if not has_action:
-        missing.append(
-            "a clear action"
-        )
-
-    return _finding(
-        "Complete Requirement",
-        False,
-        "The requirement is missing "
-        + ", ".join(missing)
-        + ".",
-        "A requirement should clearly describe who or what performs an action and the expected behavior.",
-        "Add the missing actor, action, or implementation detail.",
-        "High",
+        evaluation_mode=evaluation_mode,
     )
 
 
@@ -613,26 +536,6 @@ def analyze_requirements(requirements):
                 requirement["id"]
             )
 
-    # =========================================================
-    # GET ACTOR AND ACTION RULES FROM MASTER MODULE
-    # =========================================================
-
-    actor_rules = [
-        rule
-        for rule in master_rules
-        if (
-            rule.get("category_name") or ""
-        ).strip().lower() == "actor"
-    ]
-
-    action_rules = [
-        rule
-        for rule in master_rules
-        if (
-            rule.get("category_name") or ""
-        ).strip().lower() == "action"
-    ]
-
     results = []
 
     for requirement in normalized:
@@ -644,18 +547,6 @@ def analyze_requirements(requirements):
         ]
 
         findings = []
-
-        # =========================================================
-        # COMPLETE REQUIREMENT
-        # =========================================================
-
-        findings.append(
-            _check_complete_requirement(
-                lower_text,
-                actor_rules,
-                action_rules,
-            )
-        )
 
         # =========================================================
         # MASTER MODULE RULES

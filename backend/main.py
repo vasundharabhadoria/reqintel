@@ -8,7 +8,8 @@ from api.v1.auth import router as auth_router
 from api.v1.projects import router as projects_router
 from api.v1.requirements import router as requirements_router
 from master_module.routes import router as master_module_router
-
+from api.v1.change_impact import router as change_impact_router
+from api.v1.versions import router as versions_router
 
 app = FastAPI(
     title="ReqIntel API",
@@ -32,7 +33,8 @@ app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(requirements_router)
 app.include_router(master_module_router)
-
+app.include_router(change_impact_router)
+app.include_router(versions_router)
 
 @app.get(
     "/",

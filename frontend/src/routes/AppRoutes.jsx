@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import LoginPage from "../features/auth/pages/LoginPage";
 import RegisterPage from "../features/auth/pages/RegisterPage";
@@ -8,7 +8,11 @@ import ProjectWorkspacePage from "../features/requirements/pages/ProjectWorkspac
 import RuleEnginePage from "../features/rule-engine/pages/RuleEnginePage";
 import MasterModulePage from "../features/master-module/pages/MasterModulePage";
 import ProtectedRoute from "./ProtectedRoute";
-
+import TraceabilityPage from "../features/requirements/pages/TraceabilityPage";
+function TraceabilityRoute() {
+  const { projectId } = useParams();
+  return <TraceabilityPage projectId={projectId} />;
+}
 function AppRoutes() {
   return (
     <Routes>
@@ -61,6 +65,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+           <Route
+  path="/projects/:projectId/traceability"
+  element={
+    <ProtectedRoute>
+      <TraceabilityRoute />
+    </ProtectedRoute>
+  }
+/>
     </Routes>
   );
 }

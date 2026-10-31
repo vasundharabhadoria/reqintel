@@ -12,32 +12,35 @@ function RuleTable({
   search,
   onSearchChange,
   onSelectRule,
+  
 }) {
   const searchTerm =
     search?.trim().toLowerCase() || "";
 
-  /*
-   * Search only:
-   * 1. Requirement ID
-   * 2. Requirement text / keywords
-   *
-   * Title is intentionally NOT included.
-   */
   const filteredRequirements =
     requirements.filter((req) => {
-      if (!searchTerm) return true;
+      if (!searchTerm) {
+        return true;
+      }
 
       const requirementId =
-        req.requirement_code || "";
+        req.requirement_code ||
+        req.code ||
+        "";
 
       const requirementText =
-        req.current_requirement_text || "";
+        req.draft_requirement_text ||
+        req.current_requirement_text ||
+        req.requirement_text ||
+        req.text ||
+        req.title ||
+        "";
 
       return (
-        requirementId
+        String(requirementId)
           .toLowerCase()
           .includes(searchTerm) ||
-        requirementText
+        String(requirementText)
           .toLowerCase()
           .includes(searchTerm)
       );
@@ -45,9 +48,6 @@ function RuleTable({
 
   return (
     <div className="rule-results-card">
-
-      {/* SEARCH */}
-
       <div className="rule-results-header">
         <div className="rule-search-wrapper">
           <Search
@@ -67,11 +67,8 @@ function RuleTable({
         </div>
       </div>
 
-      {/* TABLE */}
-
       <div className="rule-table-wrapper">
         <table className="rule-table">
-
           <colgroup>
             <col className="rule-col-id" />
             <col className="rule-col-requirement" />
@@ -97,78 +94,112 @@ function RuleTable({
           <tbody>
             {filteredRequirements.length > 0 ? (
               filteredRequirements.map((req) => {
-                const findings =
-                  req.findings || [];
+                const findings = Array.isArray(
+                  req.findings
+                )
+                  ? req.findings
+                  : [];
 
                 const failedFindings =
                   findings.filter(
                     (finding) =>
-                      finding.passed === false
+                      finding?.passed === false
                   );
 
                 const issueCount =
                   failedFindings.length;
 
+                const qualityScore =
+                  req.quality_score;
+
+                const hasDraft = Boolean(
+                  String(
+                    req.draft_requirement_text || ""
+                  ).trim()
+                );
+
+                const requirementText =
+                  req.draft_requirement_text ||
+                  req.current_requirement_text ||
+                  req.requirement_text ||
+                  req.text ||
+                  req.title ||
+                  "Untitled Requirement";
+
+                const requirementId =
+                  req.requirement_code ||
+                  req.code ||
+                  "—";
+
+                const sourceDocument =
+                  req.source_document_name ||
+                  req.source_document
+                    ?.original_filename ||
+                  req.source_document
+                    ?.filename ||
+                  req.original_filename ||
+                  req.source_name ||
+                  "—";
+
                 return (
                   <tr key={req.id}>
-
-                    {/* REQUIREMENT ID */}
-
                     <td>
                       <strong className="requirement-id">
-                        {req.requirement_code ||
-                          "RQ-001"}
+                        {requirementId}
                       </strong>
                     </td>
-
-                    {/* REQUIREMENT */}
 
                     <td>
                       <div className="requirement-cell">
                         <span>
-                          {req.current_requirement_text ||
-                            req.title ||
-                            "Untitled Requirement"}
+                          {requirementText}
                         </span>
                       </div>
                     </td>
 
-                    {/* SOURCE DOCUMENT */}
-
                     <td>
                       <div className="rule-source-document">
-                        {req.source_document_name ||
-                          req.source_document
-                            ?.original_filename ||
-                          req.original_filename ||
-                          req.source
-                            ?.original_filename ||
-                          req.source_name ||
-                          "—"}
+                        {sourceDocument}
                       </div>
                     </td>
-
-                    {/* QUALITY SCORE */}
 
                     <td>
                       <div className="rule-quality-score">
-                        {req.quality_score ??
-                          req.qualityScore ??
-                          "—"}
+                        {qualityScore !== null &&
+                        qualityScore !== undefined &&
+                        Number.isFinite(
+                          Number(qualityScore)
+                        )
+                          ? `${Math.round(
+                              Number(
+                                qualityScore
+                              )
+                            )}/100`
+                          : "—"}
                       </div>
-                    </td>
 
-                    {/* STATUS */}
+                      {issueCount > 0 && (
+                        <small className="rule-score-note">
+                          {issueCount} rule issue
+                          {issueCount === 1 ? "" : "s"} open
+                        </small>
+                      )}
+                    </td>
 
                     <td>
                       <StatusPill
                         status={
-                          req.status || "pending"
+                          req.status ||
+                          "pending"
                         }
                       />
-                    </td>
 
-                    {/* ISSUES */}
+                      {hasDraft && (
+                        <small className="rule-draft-note">
+                          Draft awaiting analysis
+                        </small>
+                      )}
+                    </td>
 
                     <td>
                       <div
@@ -179,9 +210,13 @@ function RuleTable({
                         }`}
                       >
                         {issueCount > 0 ? (
-                          <AlertTriangle size={15} />
+                          <AlertTriangle
+                            size={15}
+                          />
                         ) : (
-                          <CheckCircle2 size={15} />
+                          <CheckCircle2
+                            size={15}
+                          />
                         )}
 
                         <span>
@@ -190,9 +225,8 @@ function RuleTable({
                       </div>
                     </td>
 
-                    {/* ACTION */}
-
                     <td>
+             
                       <button
                         type="button"
                         className="view-rule-button"
@@ -204,14 +238,13 @@ function RuleTable({
                         <span>View</span>
                       </button>
                     </td>
-
                   </tr>
                 );
               })
             ) : (
               <tr>
                 <td
-                  colSpan="7"
+                  colSpan="8"
                   className="rule-no-results"
                 >
                   No requirements found matching
@@ -220,7 +253,6 @@ function RuleTable({
               </tr>
             )}
           </tbody>
-
         </table>
       </div>
     </div>

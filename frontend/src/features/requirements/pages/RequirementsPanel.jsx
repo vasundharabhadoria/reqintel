@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Sparkles,
   X,
@@ -83,6 +78,7 @@ function RequirementsPanel({
   const [showAnalyzeModal, setShowAnalyzeModal] =
     useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
 
   const debouncedSearch = useDebouncedValue(
@@ -189,9 +185,22 @@ function RequirementsPanel({
 
     setShowAnalyzeModal(true);
     setAnalyzing(true);
+    setAnalysisStep(1);
     setLoadError("");
 
     try {
+      /*
+       * IMPORTANT:
+       * This is the FIRST Analyze button.
+       *
+       * It performs the actual project analysis:
+       * - runs the Rule Engine
+       * - runs Groq / AI analysis
+       * - saves the analysis in the backend
+       *
+       * The Rule Engine page then loads the returned
+       * analysis and displays the saved results.
+       */
       const analysisData =
         await analyzeRequirements(projectId);
 
@@ -200,20 +209,26 @@ function RequirementsPanel({
         JSON.stringify(analysisData)
       );
 
-      navigate(
-        `/projects/${projectId}/rule-engine`,
-        {
-          replace: true,
-        }
-      );
+      setAnalysisStep(4);
+      setAnalyzing(false);
+
+      setTimeout(() => {
+        navigate(
+          `/projects/${projectId}/rule-engine`,
+          {
+            replace: true,
+          }
+        );
+      }, 700);
     } catch (err) {
       console.error(
-        "Failed to analyze requirements:",
+        "Failed to load saved analysis:",
         err
       );
 
       setAnalyzing(false);
       setShowAnalyzeModal(false);
+      setAnalysisStep(1);
 
       setLoadError(
         err.message ||
@@ -288,7 +303,7 @@ function RequirementsPanel({
           )}
 
           {analyzing
-            ? "Analyzing..."
+            ? "Loading..."
             : "Analyze Requirements"}
         </button>
       </div>
@@ -548,84 +563,139 @@ function RequirementsPanel({
             </button>
 
             <div className="analyze-icon">
-              {analyzing ? (
-                <Sparkles size={28} />
-              ) : (
+              {analysisStep === 4 ? (
                 <CheckCircle2 size={28} />
+              ) : (
+                <Sparkles size={28} />
               )}
             </div>
 
             <h2>
-              {analyzing
-                ? "Analyzing Requirements"
-                : "Analysis Complete"}
+              {analysisStep === 4
+                ? "Analysis Complete"
+                : "Analyzing Requirements"}
             </h2>
 
             <p className="analyze-subtitle">
-              {analyzing
-                ? "Please wait while the Rule Engine analyzes your requirements."
-                : "Your requirements have been analyzed successfully."}
+              {analysisStep === 4
+                ? "Analysis completed successfully. Opening the Rule Engine."
+                : "Please wait while Rule Engine and AI analysis are running."}
             </p>
 
             <div className="analyze-progress">
               <div
                 className={`analyze-progress-bar ${
-                  analyzing
-                    ? "running"
-                    : "complete"
+                  analysisStep === 4
+                    ? "complete"
+                    : "running"
                 }`}
+                style={{
+                  width:
+                    analysisStep === 4
+                      ? "100%"
+                      : "60%",
+                }}
               />
             </div>
 
             <div className="analyze-progress-text">
-              {analyzing
-                ? "Running Rule Engine..."
-                : "100%"}
+              {analysisStep === 4
+                ? "Analysis completed."
+                : "Running Rule Engine and AI analysis..."}
             </div>
 
-            <div className="analyze-step active">
+            {[
+              {
+                number: 1,
+                title: "Running Rule Engine",
+                description:
+                  "Running the Rule Engine against the current requirements...",
+              },
+              {
+                number: 2,
+                title: "Running AI Analysis",
+                description:
+                  "Running AI analysis and saving the results...",
+              },
+              {
+                number: 3,
+                title: "Opening Rule Engine",
+                description:
+                  "Opening the Rule Engine workspace...",
+              },
+            ].map((step) => {
+              const completed =
+                analysisStep === 4 ||
+                step.number < analysisStep;
 
-              <div className="step-icon">
-                {analyzing ? (
-                  <Loader2
-                    size={20}
-                    className="spin"
-                  />
-                ) : (
-                  <CheckCircle2 size={20} />
-                )}
-              </div>
+              const active =
+                analysisStep !== 4 &&
+                step.number === analysisStep;
 
-              <div className="step-content">
+              return (
+                <div
+                  key={step.number}
+                  className={`analyze-step ${
+                    active || completed
+                      ? "active"
+                      : ""
+                  }`}
+                >
 
-                <strong>
-                  Running Rule Engine
-                </strong>
+                  <div className="step-icon">
+                    {completed ? (
+                      <CheckCircle2 size={20} />
+                    ) : active ? (
+                      <Loader2
+                        size={20}
+                        className="spin"
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          width: 20,
+                          height: 20,
+                          border: "2px solid currentColor",
+                          borderRadius: "50%",
+                          display: "inline-block",
+                          opacity: 0.55,
+                        }}
+                      />
+                    )}
+                  </div>
 
-                <span>
-                  {analyzing
-                    ? "Validating requirements with business rules..."
-                    : "Requirement validation completed."}
-                </span>
+                  <div className="step-content">
+                    <strong>{step.title}</strong>
+                    <span>
+                      {completed
+                        ? step.number === 1
+                          ? "Rule Engine analysis completed."
+                          : step.number === 2
+                            ? "AI analysis completed and results saved."
+                            : "Rule Engine workspace ready."
+                        : step.description}
+                    </span>
+                  </div>
 
-              </div>
+                  <div className="step-status">
+                    {completed
+                      ? "Completed"
+                      : active
+                        ? "In Progress"
+                        : "Pending"}
+                  </div>
 
-              <div className="step-status">
-                {analyzing
-                  ? "In Progress"
-                  : "Completed"}
-              </div>
+                </div>
+              );
+            })}
 
-            </div>
-
-            {!analyzing && (
+            {analysisStep === 4 && (
               <p className="redirect-message">
                 Opening Rule Engine...
               </p>
             )}
 
           </div>
-
         </div>
       )}
 

@@ -61,7 +61,24 @@ class RequirementVersionListResponse(BaseModel):
 class RequirementVersionCreate(BaseModel):
     requirement_text: str = Field(min_length=1)
     change_summary: str | None = Field(default=None, max_length=500)
+class TraceabilityLinkCreate(BaseModel):
+    source_requirement_id: UUID
+    target_requirement_id: UUID
+    link_type: str = Field(min_length=1, max_length=100)
 
+
+class TraceabilityLinkResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    source_requirement_id: UUID
+    target_requirement_id: UUID
+    link_type: str
+    mapped_by: UUID | None = None
+    mapped_at: datetime
+
+class TraceabilityLinkListResponse(BaseModel):
+    total: int
+    items: list[TraceabilityLinkResponse]
 
 class RequirementResponse(BaseModel):
     """A requirement plus its resolved current version (if any)."""
@@ -78,6 +95,7 @@ class RequirementResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     current_version_number: int | None = None
+    current_version_id: UUID | None = None
     current_requirement_text: str | None = None
 
 

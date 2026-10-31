@@ -18,6 +18,10 @@ function RuleStatsCards({ stats }) {
     {
       label: "Pending Review",
       value: stats.pending,
+      note:
+        stats.drafts > 0
+          ? `${stats.drafts} draft${stats.drafts === 1 ? "" : "s"} awaiting analysis`
+          : null,
       icon: Clock3,
       color: "orange",
     },
@@ -64,6 +68,9 @@ function RuleStatsCards({ stats }) {
             <div className="rule-stat-info">
               <span>{card.label}</span>
               <strong>{card.value}</strong>
+              {card.note && (
+                <small className="rule-stat-note">{card.note}</small>
+              )}
             </div>
           </div>
         );
