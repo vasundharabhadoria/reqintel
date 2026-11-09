@@ -25,8 +25,13 @@ export function AuthProvider({ children }) {
       try {
         const currentUser = await getCurrentUser();
         setUser(currentUser);
-      } catch {
-        clearTokens();
+      } catch (err) {
+        // Only an authentication failure ends the session. A network error
+        // or a server error keeps the stored tokens so a reload can retry.
+        if (err.status === 401) {
+          clearTokens();
+        }
+
         setUser(null);
       } finally {
         setLoading(false);

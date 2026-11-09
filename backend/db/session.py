@@ -35,7 +35,10 @@ async def get_db(
     Provide one AsyncSession per request.
 
     The RLS user context is set inside the session's current transaction.
-    RequirementService is responsible for commit/rollback operations.
+    Services are responsible for committing: any transaction still open
+    when the request ends is rolled back below, so a write that is never
+    committed (RequirementService, ProjectService, ProjectDeletionService
+    all commit explicitly) is silently lost.
     """
 
     async with AsyncSessionLocal() as session:

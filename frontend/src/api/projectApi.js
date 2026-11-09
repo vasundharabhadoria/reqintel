@@ -70,3 +70,22 @@ export function updateProjectStatus(projectId, status) {
     }),
   });
 }
+
+export function permanentlyDeleteProject(projectId, confirmName) {
+  return apiRequest(`/api/v1/projects/${projectId}/permanent`, {
+    method: "DELETE",
+    body: JSON.stringify({
+      confirm_name: confirmName,
+    }),
+  });
+}
+
+export function retryStorageCleanup(correlationId) {
+  const query = correlationId
+    ? `?correlation_id=${encodeURIComponent(correlationId)}`
+    : "";
+
+  return apiRequest(`/api/v1/projects/storage-cleanup/retry${query}`, {
+    method: "POST",
+  });
+}

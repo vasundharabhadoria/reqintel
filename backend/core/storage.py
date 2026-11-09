@@ -3,6 +3,7 @@ from supabase import Client, create_client
 from core.config import settings
 
 REQUIREMENT_SOURCES_BUCKET = "requirement-sources"
+REPORTS_BUCKET = "reports"
 
 
 def create_storage_client() -> Client:

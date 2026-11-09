@@ -4,6 +4,7 @@ import {
   MoreVertical,
   Pencil,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -36,6 +37,7 @@ function ProjectRowMenu({
   onEdit,
   onArchive,
   onRestore,
+  onPermanentDelete,
 }) {
   const [open, setOpen] = useState(false);
 
@@ -118,6 +120,19 @@ function ProjectRowMenu({
                 Archive
               </button>
             )}
+
+            <button
+              type="button"
+              role="menuitem"
+              className="row-menu-danger"
+              onClick={() => {
+                setOpen(false);
+                onPermanentDelete(project);
+              }}
+            >
+              <Trash2 size={14} />
+              Permanently Delete
+            </button>
           </div>
         </FloatingPortal>
       )}
@@ -131,6 +146,7 @@ function ProjectsTable({
   onEdit,
   onArchive,
   onRestore,
+  onPermanentDelete,
 }) {
   return (
     <table className="projects-table">
@@ -187,6 +203,7 @@ function ProjectsTable({
                 onEdit={onEdit}
                 onArchive={onArchive}
                 onRestore={onRestore}
+                onPermanentDelete={onPermanentDelete}
               />
             </td>
           </tr>

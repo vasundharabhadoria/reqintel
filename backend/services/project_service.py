@@ -28,6 +28,19 @@ class ProjectService:
             {"user_id": user_id, "action": action, "entity_id": project_id},
         )
 
+    async def _commit(self) -> None:
+        """
+        Commit the request's transaction: the row change and its activity log
+        together, so both persist or neither does. get_db() rolls back any
+        transaction that is still open when the request ends, so a write that
+        is never committed here is silently lost.
+        """
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
     async def create_project(
         self, owner_id: UUID, payload: ProjectCreate
     ) -> ProjectResponse:
@@ -39,7 +52,9 @@ class ProjectService:
             payload.description,
         )
         await self._log_activity(owner_id, "PROJECT_CREATED", row["id"])
-        return ProjectResponse.model_validate(row)
+        response = ProjectResponse.model_validate(row)
+        await self._commit()
+        return response
 
     async def list_projects(
         self, owner_id: UUID, status_filter: str | None, search: str | None
@@ -73,7 +88,9 @@ class ProjectService:
                 detail="Project not found.",
             )
         await self._log_activity(owner_id, "PROJECT_UPDATED", project_id)
-        return ProjectResponse.model_validate(row)
+        response = ProjectResponse.model_validate(row)
+        await self._commit()
+        return response
 
     async def archive_project(
         self, owner_id: UUID, project_id: UUID
@@ -85,7 +102,9 @@ class ProjectService:
                 detail="Project not found.",
             )
         await self._log_activity(owner_id, "PROJECT_ARCHIVED", project_id)
-        return ProjectResponse.model_validate(row)
+        response = ProjectResponse.model_validate(row)
+        await self._commit()
+        return response
 
     async def update_project_status(
         self,
@@ -111,4 +130,6 @@ class ProjectService:
             project_id,
         )
 
-        return ProjectResponse.model_validate(row)
+        response = ProjectResponse.model_validate(row)
+        await self._commit()
+        return response

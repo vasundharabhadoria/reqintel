@@ -7,6 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth.schemas import UserResponse
 from core.dependencies import get_current_user
 from db.session import get_db
+from models.project_deletion import (
+    ProjectPermanentDeleteRequest,
+    ProjectPermanentDeleteResponse,
+    StorageCleanupRetryResponse,
+)
 from models.project import (
     ProjectCreate,
     ProjectListResponse,
@@ -14,6 +19,7 @@ from models.project import (
     ProjectStatusUpdate,
     ProjectUpdate,
 )
+from services.project_deletion_service import ProjectDeletionService
 from services.project_service import ProjectService
 
 router = APIRouter(prefix="/api/v1/projects", tags=["Projects"])
@@ -136,3 +142,51 @@ async def archive_project(
 
     service = ProjectService(db)
     return await service.archive_project(UUID(current_user.id), project_id)
+
+
+@router.delete(
+    "/{project_id}/permanent",
+    response_model=ProjectPermanentDeleteResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def permanently_delete_project(
+    project_id: UUID,
+    payload: ProjectPermanentDeleteRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProjectPermanentDeleteResponse:
+    """
+    Permanently delete a project and ALL of its data (irreversible).
+
+    Separate from the archive endpoint above, which only sets
+    status='archived'. The body must carry the exact project name.
+    Database deletion is one transaction; storage files are removed
+    after it commits (see ProjectDeletionService).
+    """
+
+    service = ProjectDeletionService(db)
+    return await service.permanently_delete_project(
+        UUID(current_user.id), project_id, payload.confirm_name
+    )
+
+
+@router.post(
+    "/storage-cleanup/retry",
+    response_model=StorageCleanupRetryResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def retry_storage_cleanup(
+    correlation_id: UUID | None = Query(default=None),
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StorageCleanupRetryResponse:
+    """
+    Retry storage cleanup for the caller's permanently deleted projects whose
+    file removal has not completed. Needs no project row: it works from the
+    append-only PROJECT_PERMANENTLY_DELETED / ..._CLEANUP_FAILED events.
+    """
+
+    service = ProjectDeletionService(db)
+    return await service.retry_storage_cleanup(
+        UUID(current_user.id), correlation_id
+    )

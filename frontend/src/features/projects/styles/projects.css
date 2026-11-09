@@ -1022,7 +1022,7 @@
 
 
 /* ============================================================
-   WORKSPACE TABS — MATCH RULE ENGINE
+   WORKSPACE TABS â€” MATCH RULE ENGINE
    ============================================================ */
 
 .workspace-header {
@@ -1122,3 +1122,85 @@
   display: none !important;
 }
 
+/* ---- Permanent delete modal ---- */
+
+.permanent-delete-warning {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #991b1b;
+  margin-bottom: 14px;
+}
+
+.permanent-delete-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.permanent-delete-list {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #374151;
+  columns: 2;
+  column-gap: 24px;
+}
+
+.permanent-delete-list li {
+  margin-bottom: 4px;
+  break-inside: avoid;
+}
+
+.permanent-delete-confirm-label {
+  display: block;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.permanent-delete-confirm-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.permanent-delete-confirm-input:focus {
+  outline: none;
+  border-color: #dc2626;
+}
+
+@media (max-width: 560px) {
+  .permanent-delete-list {
+    columns: 1;
+  }
+}
+
+/* ---- Pending storage cleanup banner ---- */
+
+.cleanup-pending-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.cleanup-pending-banner svg {
+  flex-shrink: 0;
+}
+
+.cleanup-pending-banner span {
+  flex: 1;
+}
