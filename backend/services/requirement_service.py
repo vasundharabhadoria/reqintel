@@ -571,6 +571,7 @@ class RequirementService:
                     f"Could not download stored file: {exc}"
                 ),
             )
+            await self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -590,6 +591,7 @@ class RequirementService:
                 processing_status="failed",
                 extraction_error=str(exc),
             )
+            await self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -605,6 +607,7 @@ class RequirementService:
                     "No text could be extracted from the document."
                 ),
             )
+            await self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -617,6 +620,7 @@ class RequirementService:
             processing_status="completed",
             raw_text=extracted_text,
         )
+        await self.db.commit()
 
         return RequirementSourceResponse.model_validate(
             updated
@@ -751,6 +755,9 @@ class RequirementService:
             for row in current_rows
             if row["id"] in created_ids
         ]
+
+        # Persist: get_db() rolls back anything left uncommitted.
+        await self.db.commit()
 
         print(
             f"[DB SAVE] Batch save complete: {len(created)} requirements"

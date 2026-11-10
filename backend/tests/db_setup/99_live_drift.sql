@@ -22,3 +22,6 @@ GRANT SELECT,INSERT,UPDATE,DELETE ON public.repository_versions, public.requirem
 
 -- Disposable-test credentials only (the script refuses to run against anything but a local *test* database).
 ALTER ROLE reqintel_app LOGIN PASSWORD 'testpw';
+
+-- Live column used by RequirementRepository that no schema file defines (drift).
+ALTER TABLE public.requirements ADD COLUMN IF NOT EXISTS draft_requirement_text text;

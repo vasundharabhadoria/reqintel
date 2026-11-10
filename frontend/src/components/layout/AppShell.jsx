@@ -100,10 +100,6 @@ function AppShell({ active, children }) {
             aria-label="Notifications"
           >
             <Bell size={21} />
-
-            <span className="notification-count">
-              3
-            </span>
           </button>
 
           {/* Profile */}

@@ -13,6 +13,7 @@ import AppShell from "../../../components/layout/AppShell";
 import { useAuth } from "../../../hooks/useAuth";
 import { useToast } from "../../../hooks/useToast";
 import { createProject, listProjects } from "../../../api/projectApi";
+import { getDashboardSummary } from "../../../api/dashboardApi";
 import ProjectFormModal from "../../projects/components/ProjectFormModal";
 import StatusBadge from "../../projects/components/StatusBadge";
 import "../styles/dashboard.css";
@@ -27,12 +28,25 @@ function formatDate(isoString) {
   });
 }
 
+function formatDateTime(isoString) {
+  if (!isoString) return "—";
+
+  return new Date(isoString).toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function DashboardPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { showToast } = useToast();
 
   const [projects, setProjects] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -48,8 +62,13 @@ function DashboardPage() {
     setLoadError("");
 
     try {
-      const response = await listProjects({});
+      const [response, summaryResponse] = await Promise.all([
+        listProjects({}),
+        getDashboardSummary({ activityLimit: 10 }),
+      ]);
+
       setProjects(response.items || []);
+      setSummary(summaryResponse);
     } catch (err) {
       if (err.status === 401) {
         await handleSessionExpired();
@@ -66,9 +85,8 @@ function DashboardPage() {
     fetchDashboardProjects();
   }, [fetchDashboardProjects]);
 
-  const activeProjectCount = projects.filter(
-    (project) => project.status === "active"
-  ).length;
+  const quality = summary?.quality;
+  const recentActivity = summary?.recent_activity || [];
 
   const recentProjects = projects.slice(0, 3);
 
@@ -231,13 +249,19 @@ function DashboardPage() {
                 </p>
               </div>
 
-              {recentProjects.length > 0 ? (
+              {loading && (
+                <p className="dashboard-muted">
+                  Loading activity...
+                </p>
+              )}
+
+              {!loading && recentActivity.length > 0 && (
                 <div className="activity-list">
 
-                  {recentProjects.map((project) => (
+                  {recentActivity.map((item) => (
                     <div
                       className="activity-card"
-                      key={`activity-${project.id}`}
+                      key={item.id}
                     >
                       <div className="activity-icon">
                         <FileText size={18} />
@@ -245,34 +269,42 @@ function DashboardPage() {
 
                       <div className="activity-content">
                         <strong>
-                          {project.name} Project Created
+                          {item.label}
+                          {item.project_name
+                            ? ` · ${item.project_name}`
+                            : ""}
+                          {item.detail ? ` (${item.detail})` : ""}
                         </strong>
 
                         <span>
-                          {formatDate(project.created_at)}
+                          {formatDateTime(item.created_at)}
                         </span>
                       </div>
                     </div>
                   ))}
 
                 </div>
-              ) : (
-                <div className="activity-card">
-                  <div className="activity-icon">
-                    <ClipboardList size={18} />
-                  </div>
-
-                  <div className="activity-content">
-                    <strong>
-                      No recent activity
-                    </strong>
-
-                    <span>
-                      Activity will appear here when you create or update projects.
-                    </span>
-                  </div>
-                </div>
               )}
+
+              {!loading &&
+                !loadError &&
+                recentActivity.length === 0 && (
+                  <div className="activity-card">
+                    <div className="activity-icon">
+                      <ClipboardList size={18} />
+                    </div>
+
+                    <div className="activity-content">
+                      <strong>
+                        No recent activity
+                      </strong>
+
+                      <span>
+                        Activity will appear here when you create or update projects.
+                      </span>
+                    </div>
+                  </div>
+                )}
             </section>
 
           </main>
@@ -303,18 +335,18 @@ function DashboardPage() {
                 </p>
 
                 <strong className="stat-number">
-                  {loading ? "—" : projects.length}
+                  {summary ? summary.total_projects : "—"}
                 </strong>
 
                 <span className="stat-green">
-                  {loading
-                    ? ""
-                    : `${activeProjectCount} Active`}
+                  {summary
+                    ? `${summary.active_projects} Active`
+                    : ""}
                 </span>
               </div>
 
               {/* REQUIREMENTS */}
-              <div className="stat-card stat-disabled">
+              <div className="stat-card">
                 <div className="stat-icon">
                   <ClipboardList size={17} />
                 </div>
@@ -324,16 +356,16 @@ function DashboardPage() {
                 </p>
 
                 <strong className="stat-number">
-                  —
+                  {summary ? summary.total_requirements : "—"}
                 </strong>
 
                 <span>
-                  Awaiting requirement data
+                  {summary ? "Across all your projects" : ""}
                 </span>
               </div>
 
               {/* PENDING REVIEWS */}
-              <div className="stat-card stat-disabled">
+              <div className="stat-card">
                 <div className="stat-icon">
                   <ClipboardList size={17} />
                 </div>
@@ -343,16 +375,16 @@ function DashboardPage() {
                 </p>
 
                 <strong className="stat-number">
-                  —
+                  {summary ? summary.pending_reviews : "—"}
                 </strong>
 
                 <span>
-                  Awaiting review data
+                  {summary ? "Requirements awaiting review" : ""}
                 </span>
               </div>
 
               {/* QUALITY */}
-              <div className="stat-card stat-disabled">
+              <div className="stat-card">
                 <div className="stat-icon">
                   <ClipboardList size={17} />
                 </div>
@@ -362,11 +394,19 @@ function DashboardPage() {
                 </p>
 
                 <strong className="stat-number">
-                  —
+                  {!quality
+                    ? "—"
+                    : quality.score === null
+                      ? "N/A"
+                      : `${quality.score}%`}
                 </strong>
 
                 <span>
-                  Awaiting requirement analysis
+                  {!quality
+                    ? ""
+                    : quality.score === null
+                      ? "No analysed requirements yet"
+                      : `${quality.analysed_requirements} of ${quality.total_requirements} requirements analysed`}
                 </span>
               </div>
 
@@ -398,7 +438,7 @@ function DashboardPage() {
               <div className="ai-card-bottom">
 
                 <strong>
-                  —
+                  {summary ? summary.ai_suggestions_generated : "—"}
                 </strong>
 
                 <div className="ai-bars">
@@ -412,7 +452,9 @@ function DashboardPage() {
               </div>
 
               <p>
-                AI insights will appear after requirement analysis.
+                {summary && summary.ai_suggestions_generated === 0
+                  ? "AI insights will appear after requirement analysis."
+                  : "Suggestions generated across your projects."}
               </p>
 
             </div>
