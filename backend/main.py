@@ -11,6 +11,7 @@ from master_module.routes import router as master_module_router
 from api.v1.change_impact import router as change_impact_router
 from api.v1.versions import router as versions_router
 from api.v1.dashboard import router as dashboard_router
+from api.v1.reports import router as reports_router
 
 app = FastAPI(
     title="ReqIntel API",
@@ -37,6 +38,7 @@ app.include_router(master_module_router)
 app.include_router(change_impact_router)
 app.include_router(versions_router)
 app.include_router(dashboard_router)
+app.include_router(reports_router)
 
 @app.get(
     "/",

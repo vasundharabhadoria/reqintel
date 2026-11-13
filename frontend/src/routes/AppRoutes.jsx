@@ -4,6 +4,7 @@ import LoginPage from "../features/auth/pages/LoginPage";
 import RegisterPage from "../features/auth/pages/RegisterPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
 import ProjectsPage from "../features/projects/pages/ProjectsPage";
+import ReportsPage from "../features/reports/pages/ReportsPage";
 import ProjectWorkspacePage from "../features/requirements/pages/ProjectWorkspacePage";
 import RuleEnginePage from "../features/rule-engine/pages/RuleEnginePage";
 import MasterModulePage from "../features/master-module/pages/MasterModulePage";
@@ -47,7 +48,15 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute>
+            <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
+      
       <Route
         path="/projects/:projectId"
         element={

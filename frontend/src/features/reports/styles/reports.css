@@ -1,0 +1,128 @@
+.report-generate-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.report-generate-card h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: #111827;
+}
+
+.report-generate-hint {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.report-generate-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.report-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 240px;
+  max-width: 420px;
+}
+
+.report-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.report-select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+  background: #fff;
+  font-family: inherit;
+  color: #1f2937;
+}
+
+.report-select:focus {
+  outline: none;
+  border-color: #1c64f2;
+}
+
+.report-format-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.report-empty-projects {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.report-empty-projects a {
+  color: #1c64f2;
+  font-weight: 600;
+}
+
+.report-filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.report-file-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.report-format-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.report-format-badge-pdf {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.report-format-badge-xlsx {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.report-format-badge-html {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.report-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-spinner {
+  animation: report-spin 0.9s linear infinite;
+}
+
+@keyframes report-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

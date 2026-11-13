@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Bell,
   ChevronDown,
+  FileText,
   Folder,
   Globe,
   LayoutGrid,
@@ -38,6 +39,12 @@ const NAV_ITEMS = [
     label: "Projects",
     icon: Folder,
     to: "/projects",
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    icon: FileText,
+    to: "/reports",
   },
 ];
 
