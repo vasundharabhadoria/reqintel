@@ -410,8 +410,18 @@
   color: var(--auth-text);
   font-size: 14px;
   font-weight: 500;
-  cursor: not-allowed;
-  opacity: 0.7;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-oauth-button:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.auth-oauth-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .auth-google-icon {
@@ -531,5 +541,93 @@
 
   .auth-hero-heading {
     font-size: 24px;
+  }
+}
+/* ---- Auth flows: OAuth group, checklist, centered states -------------- */
+
+.auth-oauth-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.auth-oauth-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-secondary-button {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 16px;
+  border: 1px solid var(--auth-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--auth-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.auth-secondary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-password-checklist {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  padding: 0;
+  margin: -6px 0 16px;
+  font-size: 12px;
+}
+
+.auth-password-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-check-unmet {
+  color: var(--auth-text-muted);
+}
+
+.auth-check-met {
+  color: #047857;
+}
+
+.auth-card-centered {
+  text-align: center;
+}
+
+.auth-card-centered .auth-submit-button,
+.auth-card-centered .auth-secondary-button {
+  justify-content: center;
+}
+
+.auth-state-icon {
+  color: #2563eb;
+  margin: 0 auto 12px;
+}
+
+.auth-state-error {
+  color: #b91c1c;
+}
+
+.auth-link-as-button {
+  text-decoration: none;
+  text-align: center;
+}
+
+.auth-spin {
+  animation: auth-spin 1s linear infinite;
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
   }
 }

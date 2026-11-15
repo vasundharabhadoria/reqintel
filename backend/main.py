@@ -4,6 +4,7 @@ truststore.inject_into_ssl()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from core.config import settings
 from api.v1.auth import router as auth_router
 from api.v1.projects import router as projects_router
 from api.v1.requirements import router as requirements_router
@@ -22,10 +23,7 @@ app = FastAPI(
 # Allow the React frontend to communicate with FastAPI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

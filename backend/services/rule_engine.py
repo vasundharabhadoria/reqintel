@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from core.supabase import supabase
+from core.supabase import get_rules_client
 
 
 def _finding(
@@ -38,7 +38,7 @@ def _load_active_rules():
 
     try:
         rules_response = (
-            supabase.from_("master_rules")
+            get_rules_client().from_("master_rules")
             .select(
                 """
                 id,
@@ -73,7 +73,7 @@ def _load_active_rules():
             return rules
 
         categories_response = (
-            supabase.from_("rule_categories")
+            get_rules_client().from_("rule_categories")
             .select(
                 "id, name, description, evaluation_mode, is_active"
             )

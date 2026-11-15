@@ -34,6 +34,38 @@ class Settings(BaseSettings):
         ),
     )
 
+    FRONTEND_URL: str = Field(
+        default="http://localhost:5173",
+        description=(
+            "Public URL of the React app. Used to build email-confirmation, "
+            "password-recovery and OAuth redirect URLs. These URLs must also "
+            "be allow-listed in Supabase (Authentication > URL Configuration)."
+        ),
+    )
+
+    TRUST_PROXY_HEADERS: bool = Field(
+        default=False,
+        description=(
+            "Read the client IP from X-Forwarded-For for rate limiting. "
+            "Enable ONLY behind a reverse proxy you control."
+        ),
+    )
+
+    @property
+    def frontend_url(self) -> str:
+        """FRONTEND_URL without a trailing slash."""
+        return self.FRONTEND_URL.rstrip("/")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Origins allowed to call the API from a browser."""
+        origins = {
+            self.frontend_url,
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        }
+        return sorted(origins)
+
     @property
     def jwt_issuer(self) -> str:
         """Expected `iss` claim on Supabase-issued access tokens."""

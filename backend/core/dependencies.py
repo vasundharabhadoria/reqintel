@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import (
@@ -11,7 +12,6 @@ from auth.exceptions import AuthenticationError
 from auth.schemas import UserResponse
 from core.config import settings
 from core.security import verify_access_token
-from core.supabase import supabase
 
 logger = logging.getLogger(__name__)
 
@@ -20,19 +20,17 @@ bearer_scheme = HTTPBearer(auto_error=False)
 _REST_URL = f"{settings.SUPABASE_URL.rstrip('/')}/rest/v1"
 
 
-def _fetch_user_role(user_id: str, access_token: str) -> str | None:
+def _new_postgrest_client(access_token: str) -> SyncPostgrestClient:
     """
-    Read the caller's own role from public.users using the caller's token.
+    Build a short-lived PostgREST client that acts as the caller.
 
-    A short-lived client is created per request on purpose. The module-level
-    `supabase` client is shared by every request, so setting a user's token
-    on it lets concurrent requests overwrite each other's Authorization
-    header and read the wrong user's row.
-
-    Returns None when the user has no profile row.
+    A new client is created per use on purpose. A client shared by every
+    request must never carry a user's token, because concurrent requests
+    would overwrite each other's Authorization header and read or write as
+    the wrong user.
     """
 
-    client = SyncPostgrestClient(
+    return SyncPostgrestClient(
         _REST_URL,
         headers={
             "apikey": settings.SUPABASE_ANON_KEY,
@@ -41,10 +39,21 @@ def _fetch_user_role(user_id: str, access_token: str) -> str | None:
         timeout=10,
     )
 
+
+def fetch_user_profile(user_id: str, access_token: str) -> dict | None:
+    """
+    Read the caller's own role and active flag from public.users using the
+    caller's token (so RLS applies).
+
+    Returns None when the user has no profile row.
+    """
+
+    client = _new_postgrest_client(access_token)
+
     try:
         response = (
             client.from_("users")
-            .select("role")
+            .select("role, is_active")
             .eq("id", user_id)
             .limit(1)
             .execute()
@@ -57,7 +66,10 @@ def _fetch_user_role(user_id: str, access_token: str) -> str | None:
     if not rows:
         return None
 
-    return rows[0].get("role")
+    return {
+        "role": rows[0].get("role"),
+        "is_active": bool(rows[0].get("is_active", True)),
+    }
 
 
 def get_current_user(
@@ -107,13 +119,8 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # NOTE: kept for Module 2/3 (rule engine, master module), which read
-    # master_rules / rule_categories through the shared `supabase` client and
-    # may rely on this header. It is NOT used for the role lookup below.
-    supabase.postgrest.auth(access_token)
-
     try:
-        role = _fetch_user_role(str(user_id), access_token)
+        profile = fetch_user_profile(str(user_id), access_token)
 
     except Exception as exc:
         logger.exception("Role lookup failed for user %s", user_id)
@@ -122,15 +129,44 @@ def get_current_user(
             detail="Unable to retrieve user information.",
         ) from exc
 
-    if role is None:
+    if profile is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User profile was not found.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if not profile["is_active"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "account_disabled",
+                "message": "This account has been deactivated.",
+            },
+        )
+
     return UserResponse(
         id=str(user_id),
         email=str(email),
-        role=role,
+        role=profile["role"],
     )
+
+
+def get_user_db(
+    current_user: UserResponse = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> Iterator[SyncPostgrestClient]:
+    """
+    Per-request PostgREST client acting as the authenticated caller.
+
+    Depends on get_current_user, so the token has already been verified and
+    the account is known to be active. The client is closed after the
+    response and is never shared with another request.
+    """
+
+    client = _new_postgrest_client(credentials.credentials)
+
+    try:
+        yield client
+    finally:
+        client.session.close()

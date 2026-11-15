@@ -18,11 +18,11 @@ os.environ["DATABASE_URL"] = "postgresql+asyncpg://u:p@localhost:5432/reqintel_t
 import jwt
 import pytest
 from fastapi.testclient import TestClient
-from supabase_auth.errors import AuthApiError
 
 import api.v1.auth as auth_api
 import core.dependencies as deps
 from core.config import settings
+from core.rate_limit import ALL_LIMITERS
 from main import app
 
 SECRET = settings.SUPABASE_JWT_SECRET
@@ -49,9 +49,23 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Rate-limit state is per process; keep tests independent."""
+    for limiter in ALL_LIMITERS:
+        limiter.reset()
+    yield
+    for limiter in ALL_LIMITERS:
+        limiter.reset()
+
+
 @pytest.fixture
 def known_user(monkeypatch):
-    monkeypatch.setattr(deps, "_fetch_user_role", lambda uid, tok: "business_analyst")
+    monkeypatch.setattr(
+        deps,
+        "fetch_user_profile",
+        lambda uid, tok: {"role": "business_analyst", "is_active": True},
+    )
 
 
 def bearer(token):
@@ -127,7 +141,7 @@ def test_valid_token_returns_own_identity(client, known_user):
 
 
 def test_missing_profile_row_is_401_not_500(client, monkeypatch):
-    monkeypatch.setattr(deps, "_fetch_user_role", lambda uid, tok: None)
+    monkeypatch.setattr(deps, "fetch_user_profile", lambda uid, tok: None)
     r = client.get("/api/v1/auth/me", headers=bearer(make_token()))
     assert r.status_code == 401
 
@@ -135,18 +149,18 @@ def test_missing_profile_row_is_401_not_500(client, monkeypatch):
 def test_role_lookup_failure_is_500(client, monkeypatch):
     def boom(uid, tok):
         raise RuntimeError("supabase down")
-    monkeypatch.setattr(deps, "_fetch_user_role", boom)
+    monkeypatch.setattr(deps, "fetch_user_profile", boom)
     r = client.get("/api/v1/auth/me", headers=bearer(make_token()))
     assert r.status_code == 500
 
 
-def test_role_lookup_uses_per_request_client(monkeypatch):
+def test_profile_lookup_uses_per_request_client(monkeypatch):
     """The shared supabase client's headers must not carry the user's token
     because of the role lookup (concurrent requests would overwrite it)."""
     captured = {}
 
     class FakeResponse:
-        data = [{"role": "business_analyst"}]
+        data = [{"role": "business_analyst", "is_active": True}]
 
     class FakeQuery:
         def select(self, *_): return self
@@ -166,7 +180,10 @@ def test_role_lookup_uses_per_request_client(monkeypatch):
 
     monkeypatch.setattr(deps, "SyncPostgrestClient", FakeClient)
 
-    assert deps._fetch_user_role("u1", "tok-A") == "business_analyst"
+    assert deps.fetch_user_profile("u1", "tok-A") == {
+        "role": "business_analyst",
+        "is_active": True,
+    }
     assert captured["headers"]["Authorization"] == "Bearer tok-A"
     assert captured["headers"]["apikey"] == settings.SUPABASE_ANON_KEY
     assert FakeSession.closed is True
@@ -174,29 +191,29 @@ def test_role_lookup_uses_per_request_client(monkeypatch):
 
 # ---------------- login / signup / logout (Supabase mocked) ----------------
 
-def test_login_invalid_credentials_is_401_generic_message(client, monkeypatch):
-    def bad(_creds):
-        raise AuthApiError("Invalid login credentials", 400, "invalid_credentials")
-    monkeypatch.setattr(auth_api.auth_service.supabase.auth, "sign_in_with_password", bad)
+from fakes import FakeAuthClient, install_fake_auth, api_error  # noqa: E402
+
+GOOD_PASSWORD = "Longenough1"
+
+
+@pytest.fixture
+def fake_auth(monkeypatch):
+    return install_fake_auth(monkeypatch)
+
+
+def test_login_invalid_credentials_is_401_generic_message(client, fake_auth):
+    fake_auth.sign_in_error = api_error("Invalid login credentials", 400, "invalid_credentials")
 
     r = client.post("/api/v1/auth/login", json={"email": "a@b.com", "password": "wrongpass1"})
     assert r.status_code == 401
     assert r.json()["detail"] == "Invalid email or password."
 
 
-def test_login_success_returns_tokens(client, monkeypatch):
-    class S:
-        access_token = "acc"
-        refresh_token = "ref"
-
-    class R:
-        session = S()
-
-    monkeypatch.setattr(auth_api.auth_service.supabase.auth, "sign_in_with_password", lambda _c: R())
-
+def test_login_success_returns_tokens(client, fake_auth, known_user):
     r = client.post("/api/v1/auth/login", json={"email": "a@b.com", "password": "correctpass1"})
     assert r.status_code == 200
     assert r.json()["access_token"] == "acc"
+    assert r.json()["refresh_token"] == "ref"
 
 
 def test_login_rejects_malformed_email(client):
@@ -205,52 +222,35 @@ def test_login_rejects_malformed_email(client):
 
 
 def test_signup_validation(client):
-    ok = {"email": "new@example.com", "password": "longenough1", "full_name": "New User"}
+    ok = {"email": "new@example.com", "password": GOOD_PASSWORD, "full_name": "New User"}
     assert client.post("/api/v1/auth/signup", json={**ok, "password": "short"}).status_code == 422
     assert client.post("/api/v1/auth/signup", json={**ok, "email": "bad"}).status_code == 422
     assert client.post("/api/v1/auth/signup", json={**ok, "full_name": "A"}).status_code == 422
 
 
-def test_signup_supabase_error_is_400(client, monkeypatch):
-    def dup(_p):
-        raise AuthApiError("User already registered", 422, "user_already_exists")
-    monkeypatch.setattr(auth_api.auth_service.supabase.auth, "sign_up", dup)
+def test_signup_supabase_error_is_400(client, fake_auth):
+    fake_auth.sign_up_error = api_error("Unable to validate email address", 400, "email_address_invalid")
 
     r = client.post("/api/v1/auth/signup",
-                    json={"email": "dup@example.com", "password": "longenough1", "full_name": "Dup User"})
+                    json={"email": "dup@example.com", "password": GOOD_PASSWORD, "full_name": "Dup User"})
     assert r.status_code == 400
 
 
-def test_signup_success(client, monkeypatch):
-    class U:
-        id = uuid.uuid4()
-        email = "new@example.com"
-
-    class R:
-        user = U()
-
-    monkeypatch.setattr(auth_api.auth_service.supabase.auth, "sign_up", lambda _p: R())
-
+def test_signup_success_returns_generic_message(client, fake_auth):
     r = client.post("/api/v1/auth/signup",
-                    json={"email": "new@example.com", "password": "longenough1", "full_name": "New User"})
+                    json={"email": "new@example.com", "password": GOOD_PASSWORD, "full_name": "New User"})
     assert r.status_code == 201
-    assert r.json()["email"] == "new@example.com"
+    body = r.json()
+    assert "confirmation link" in body["message"]
+    assert "id" not in body and "email" not in body  # nothing about the account
 
 
 def test_logout_requires_token(client):
     assert client.post("/api/v1/auth/logout").status_code == 401
 
 
-def test_logout_calls_supabase_with_token(client, known_user, monkeypatch):
-    seen = {}
-
-    def fake_sign_out(token, scope="local"):
-        seen["token"] = token
-        seen["scope"] = scope
-
-    monkeypatch.setattr(auth_api.auth_service.supabase.auth.admin, "sign_out", fake_sign_out)
-
+def test_logout_calls_supabase_with_token(client, known_user, fake_auth):
     token = make_token()
     r = client.post("/api/v1/auth/logout", headers=bearer(token))
     assert r.status_code == 200
-    assert seen == {"token": token, "scope": "local"}
+    assert fake_auth.signed_out == [(token, "local")]

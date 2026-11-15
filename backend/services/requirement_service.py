@@ -8,7 +8,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.storage import REQUIREMENT_SOURCES_BUCKET, get_storage_client
-from core.supabase import supabase
+from core.supabase import get_rules_client
 from models.requirement import (
     ExtractedRequirementSummary,
     ManualRequirementCreate,
@@ -129,7 +129,7 @@ class RequirementService:
         """Load active Master Module rules and category context for AI analysis."""
         try:
             rules_response = (
-                supabase.from_("master_rules")
+                get_rules_client().from_("master_rules")
                 .select(
                     "id, category_id, rule, description, why_it_matters, "
                     "recommendation, rule_type, severity, is_active"
@@ -152,7 +152,7 @@ class RequirementService:
                 return rules
 
             categories_response = (
-                supabase.from_("rule_categories")
+                get_rules_client().from_("rule_categories")
                 .select(
                     "id, name, description, evaluation_mode, is_active"
                 )

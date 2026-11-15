@@ -1,12 +1,19 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
+  exchangeOAuthCode,
   getCurrentUser,
   loginUser,
   logoutUser,
   registerUser,
 } from "../api/authApi";
-import { clearTokens, getAccessToken, setTokens } from "../api/tokenStorage";
+import { SESSION_EXPIRED_EVENT } from "../api/client";
+import {
+  TOKEN_STORAGE_KEYS,
+  clearTokens,
+  getAccessToken,
+  setTokens,
+} from "../api/tokenStorage";
 import { AuthContext } from "./AuthContextObject";
 
 export function AuthProvider({ children }) {
@@ -15,20 +22,18 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     async function restoreSession() {
-      const token = getAccessToken();
-
-      if (!token) {
+      if (!getAccessToken()) {
         setLoading(false);
         return;
       }
 
       try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        // apiRequest refreshes an expired access token and retries once.
+        setUser(await getCurrentUser());
       } catch (err) {
-        // Only an authentication failure ends the session. A network error
-        // or a server error keeps the stored tokens so a reload can retry.
-        if (err.status === 401) {
+        // 401/403 means the session is gone. A network or server error keeps
+        // the stored tokens so a reload can retry.
+        if (err.status === 401 || err.status === 403) {
           clearTokens();
         }
 
@@ -41,22 +46,88 @@ export function AuthProvider({ children }) {
     restoreSession();
   }, []);
 
-  async function login(email, password) {
-    const tokens = await loginUser(email, password);
+  // The session can no longer be refreshed -> drop local state; the
+  // ProtectedRoute then redirects to /login.
+  useEffect(() => {
+    function handleExpired() {
+      clearTokens();
+      setUser(null);
+    }
 
-    setTokens(tokens);
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
 
-    const currentUser = await getCurrentUser();
-    setUser(currentUser);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+  }, []);
 
-    return currentUser;
-  }
+  // Cross-tab: logging out (or in) in another tab is reflected here. The
+  // `storage` event only fires for localStorage, i.e. "Remember me" sessions;
+  // a session-only login is per tab by design.
+  useEffect(() => {
+    function handleStorage(event) {
+      const isTokenKey =
+        event.key === null || event.key === TOKEN_STORAGE_KEYS.access;
 
-  async function register(fullName, email, password) {
-    return await registerUser(fullName, email, password);
-  }
+      if (!isTokenKey) {
+        return;
+      }
 
-  async function logout() {
+      if (!getAccessToken()) {
+        setUser(null);
+        return;
+      }
+
+      getCurrentUser()
+        .then(setUser)
+        .catch(() => setUser(null));
+    }
+
+    window.addEventListener("storage", handleStorage);
+
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  const completeLogin = useCallback(async (tokens, remember) => {
+    setTokens(tokens, { remember });
+
+    try {
+      const currentUser = await getCurrentUser();
+
+      setUser(currentUser);
+
+      return currentUser;
+    } catch (err) {
+      // e.g. 403 account_disabled: never leave half a session behind.
+      clearTokens();
+      setUser(null);
+
+      throw err;
+    }
+  }, []);
+
+  const login = useCallback(
+    async (email, password, remember = false) => {
+      const tokens = await loginUser(email, password);
+
+      return completeLogin(tokens, remember);
+    },
+    [completeLogin]
+  );
+
+  const loginWithOAuthCode = useCallback(
+    async (code, codeVerifier, remember = false) => {
+      const tokens = await exchangeOAuthCode(code, codeVerifier);
+
+      return completeLogin(tokens, remember);
+    },
+    [completeLogin]
+  );
+
+  const register = useCallback(
+    (fullName, email, password) => registerUser(fullName, email, password),
+    []
+  );
+
+  const logout = useCallback(async () => {
     try {
       await logoutUser();
     } catch {
@@ -65,7 +136,7 @@ export function AuthProvider({ children }) {
 
     clearTokens();
     setUser(null);
-  }
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -74,6 +145,7 @@ export function AuthProvider({ children }) {
         loading,
         isAuthenticated: !!user,
         login,
+        loginWithOAuthCode,
         register,
         logout,
       }}

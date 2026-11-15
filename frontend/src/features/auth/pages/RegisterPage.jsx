@@ -1,14 +1,24 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, CheckCircle2, Mail, User } from "lucide-react";
+import { Link } from "react-router-dom";
+import { AlertCircle, Mail, MailCheck, User } from "lucide-react";
 
+import { resendConfirmation } from "../../../api/authApi";
 import { useAuth } from "../../../hooks/useAuth";
 import AuthLayout from "../components/AuthLayout";
+import OAuthButtons from "../components/OAuthButtons";
+import PasswordChecklist from "../components/PasswordChecklist";
 import PasswordInput from "../components/PasswordInput";
+import { useCooldown } from "../useCooldown";
+import {
+  FULL_NAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  fullNameError,
+  isValidEmail,
+  passwordError,
+} from "../validation";
 import "../styles/auth.css";
 
 function RegisterPage() {
-  const navigate = useNavigate();
   const { register } = useAuth();
 
   const [fullName, setFullName] = useState("");
@@ -19,19 +29,26 @@ function RegisterPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [resendMessage, setResendMessage] = useState("");
+  const [resending, setResending] = useState(false);
+  const cooldown = useCooldown(60);
 
   function validate() {
-    if (!fullName.trim()) {
-      return "Full name is required.";
+    const nameProblem = fullNameError(fullName);
+
+    if (nameProblem) {
+      return nameProblem;
     }
 
-    if (!email.trim()) {
-      return "Email address is required.";
+    if (!isValidEmail(email)) {
+      return "Enter a valid email address.";
     }
 
-    if (password.length < 8) {
-      return "Password must contain at least 8 characters.";
+    const passwordProblem = passwordError(password);
+
+    if (passwordProblem) {
+      return passwordProblem;
     }
 
     if (password !== confirmPassword) {
@@ -49,7 +66,6 @@ function RegisterPage() {
     event.preventDefault();
 
     setError("");
-    setMessage("");
 
     const validationError = validate();
 
@@ -64,16 +80,92 @@ function RegisterPage() {
       // confirmPassword is intentionally never sent to the backend.
       await register(fullName.trim(), email.trim(), password);
 
-      setMessage("Account created successfully! Redirecting to login...");
-
-      setTimeout(() => {
-        navigate("/login");
-      }, 1200);
+      // Email confirmation is on: the account cannot sign in until the link
+      // in the email is opened, so show a check-your-email state.
+      setSubmittedEmail(email.trim());
+      cooldown.start();
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleResend() {
+    setResending(true);
+    setResendMessage("");
+    setError("");
+
+    try {
+      const result = await resendConfirmation(submittedEmail);
+
+      setResendMessage(result.message);
+      cooldown.start();
+    } catch (err) {
+      setError(err.message);
+      cooldown.start(err.retryAfter);
+    } finally {
+      setResending(false);
+    }
+  }
+
+  if (submittedEmail) {
+    return (
+      <AuthLayout>
+        <div className="auth-card auth-card-centered">
+          <MailCheck size={44} className="auth-state-icon" />
+
+          <h1>Check your email</h1>
+
+          <p className="auth-card-subtitle">
+            If <strong>{submittedEmail}</strong> can be registered, we sent a
+            confirmation link. Open it to activate your account, then sign in.
+          </p>
+
+          <p className="auth-card-subtitle">
+            Can't find it? Check your spam or junk folder.
+          </p>
+
+          {error && (
+            <div className="auth-error-box" role="alert">
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {resendMessage && (
+            <div className="auth-success-box" role="status">
+              {resendMessage}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="auth-secondary-button"
+            onClick={handleResend}
+            disabled={resending || cooldown.remaining > 0}
+          >
+            {cooldown.remaining > 0
+              ? `Resend available in ${cooldown.remaining}s`
+              : resending
+                ? "Sending..."
+                : "Resend confirmation email"}
+          </button>
+
+          <p className="auth-footer">
+            Wrong address? <button
+              type="button"
+              className="auth-link-button"
+              onClick={() => setSubmittedEmail("")}
+            >
+              Go back
+            </button>
+            {" · "}
+            <Link to="/login">Back to login</Link>
+          </p>
+        </div>
+      </AuthLayout>
+    );
   }
 
   return (
@@ -83,19 +175,9 @@ function RegisterPage() {
         <p className="auth-card-subtitle">Start using ReqIntel</p>
 
         {error && (
-          <div className="auth-error-box">
+          <div className="auth-error-box" role="alert">
             <AlertCircle size={16} />
             <span>{error}</span>
-          </div>
-        )}
-
-        {message && (
-          <div className="auth-success-box">
-            <CheckCircle2
-              size={16}
-              style={{ marginRight: 6, verticalAlign: "text-bottom" }}
-            />
-            {message}
           </div>
         )}
 
@@ -114,6 +196,7 @@ function RegisterPage() {
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
                 autoComplete="name"
+                maxLength={FULL_NAME_MAX_LENGTH}
                 required
               />
             </div>
@@ -145,9 +228,10 @@ function RegisterPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
-            minLength={8}
-            maxLength={128}
+            maxLength={PASSWORD_MAX_LENGTH}
           />
+
+          <PasswordChecklist password={password} />
 
           <PasswordInput
             id="confirmPassword"
@@ -171,6 +255,10 @@ function RegisterPage() {
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
+
+        <div className="auth-divider">or sign up with</div>
+
+        <OAuthButtons disabled={loading} onError={setError} />
 
         <p className="auth-footer">
           Already have an account? <Link to="/login">Login</Link>

@@ -1,54 +1,109 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, ArrowRight, Mail } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { AlertCircle, ArrowRight, CheckCircle2, Mail } from "lucide-react";
 
+import { resendConfirmation } from "../../../api/authApi";
 import { useAuth } from "../../../hooks/useAuth";
+import { homePathForUser } from "../../../routes/homePath";
 import AuthLayout from "../components/AuthLayout";
+import OAuthButtons from "../components/OAuthButtons";
 import PasswordInput from "../components/PasswordInput";
+import { useCooldown } from "../useCooldown";
+import { isValidEmail } from "../validation";
 import "../styles/auth.css";
 
 const REMEMBERED_EMAIL_KEY = "reqintel_remembered_email";
 
+function readRememberedEmail() {
+  try {
+    return localStorage.getItem(REMEMBERED_EMAIL_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState(
-    () => localStorage.getItem(REMEMBERED_EMAIL_KEY) || ""
-  );
+  const [email, setEmail] = useState(readRememberedEmail);
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(
-    () => !!localStorage.getItem(REMEMBERED_EMAIL_KEY)
-  );
+  const [rememberMe, setRememberMe] = useState(() => !!readRememberedEmail());
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showForgotNote, setShowForgotNote] = useState(false);
+  const [notice, setNotice] = useState(location.state?.notice || "");
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resending, setResending] = useState(false);
+  const cooldown = useCooldown(60);
 
   async function handleSubmit(event) {
     event.preventDefault();
 
     setError("");
+    setNotice("");
+    setNeedsConfirmation(false);
+
+    const cleanEmail = email.trim();
+
+    if (!isValidEmail(cleanEmail)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+
+    if (!password) {
+      setError("Enter your password.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const currentUser = await login(email, password);
+      const currentUser = await login(cleanEmail, password, rememberMe);
 
-      if (rememberMe) {
-        localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
-      } else {
-        localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      try {
+        if (rememberMe) {
+          localStorage.setItem(REMEMBERED_EMAIL_KEY, cleanEmail);
+        } else {
+          localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+        }
+      } catch {
+        // Remembering the email is a convenience only.
       }
 
-      if (currentUser.role === "admin") {
-        navigate("/master-module");
-      } else {
-        navigate("/dashboard");
-      }
+      // Send the user back to the page they were trying to open, if any.
+      const from = location.state?.from?.pathname;
+
+      navigate(from && from !== "/login" ? from : homePathForUser(currentUser), {
+        replace: true,
+      });
     } catch (err) {
+      if (err.code === "email_not_confirmed") {
+        setNeedsConfirmation(true);
+      }
+
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setResending(true);
+    setError("");
+
+    try {
+      const result = await resendConfirmation(email.trim());
+
+      setNotice(result.message);
+      setNeedsConfirmation(false);
+      cooldown.start();
+    } catch (err) {
+      setError(err.message);
+      cooldown.start(err.retryAfter);
+    } finally {
+      setResending(false);
     }
   }
 
@@ -60,11 +115,36 @@ function LoginPage() {
           Login to your account to continue
         </p>
 
+        {notice && (
+          <div className="auth-success-box" role="status">
+            <CheckCircle2
+              size={16}
+              style={{ marginRight: 6, verticalAlign: "text-bottom" }}
+            />
+            {notice}
+          </div>
+        )}
+
         {error && (
-          <div className="auth-error-box">
+          <div className="auth-error-box" role="alert">
             <AlertCircle size={16} />
             <span>{error}</span>
           </div>
+        )}
+
+        {needsConfirmation && (
+          <button
+            type="button"
+            className="auth-secondary-button"
+            onClick={handleResend}
+            disabled={resending || cooldown.remaining > 0}
+          >
+            {cooldown.remaining > 0
+              ? `Resend available in ${cooldown.remaining}s`
+              : resending
+                ? "Sending..."
+                : "Resend confirmation email"}
+          </button>
         )}
 
         <form onSubmit={handleSubmit} noValidate>
@@ -106,21 +186,10 @@ function LoginPage() {
               Remember me
             </label>
 
-            <button
-              type="button"
-              className="auth-link-button"
-              onClick={() => setShowForgotNote((current) => !current)}
-            >
+            <Link to="/forgot-password" className="auth-link-button">
               Forgot Password?
-            </button>
+            </Link>
           </div>
-
-          {showForgotNote && (
-            <p className="auth-inline-note">
-              Password reset isn't available yet. Please contact your
-              administrator.
-            </p>
-          )}
 
           <button
             type="submit"
@@ -139,15 +208,11 @@ function LoginPage() {
 
         <div className="auth-divider">or continue with</div>
 
-        <button
-          type="button"
-          className="auth-oauth-button"
-          disabled
-          title="Google sign-in coming soon"
-        >
-          <span className="auth-google-icon">G</span>
-          Continue with Google
-        </button>
+        <OAuthButtons
+          remember={rememberMe}
+          disabled={loading}
+          onError={setError}
+        />
 
         <p className="auth-footer">
           Don't have an account? <Link to="/register">Sign Up</Link>

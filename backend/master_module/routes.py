@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from postgrest import SyncPostgrestClient
 
 from auth.schemas import UserResponse
-from core.dependencies import get_current_user
-from core.supabase import supabase
+from core.dependencies import get_current_user, get_user_db
 
 from .schemas import (
     CategoryCreate,
@@ -43,10 +43,11 @@ def require_admin(
 )
 def get_categories(
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     try:
         response = (
-            supabase
+            db
             .from_("rule_categories")
             .select(
                 "id, name, description, evaluation_mode, is_active"
@@ -74,10 +75,11 @@ def get_categories(
 def create_category(
     payload: CategoryCreate,
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     try:
         response = (
-            supabase
+            db
             .from_("rule_categories")
             .insert(
                 {
@@ -121,6 +123,7 @@ def update_category(
     category_id: str,
     payload: CategoryUpdate,
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     update_data = {}
 
@@ -144,7 +147,7 @@ def update_category(
 
     try:
         response = (
-            supabase
+            db
             .from_("rule_categories")
             .update(update_data)
             .eq("id", category_id)
@@ -177,10 +180,11 @@ def update_category(
 def delete_category(
     category_id: str,
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     try:
         response = (
-            supabase
+            db
             .from_("rule_categories")
             .delete()
             .eq("id", category_id)
@@ -221,10 +225,11 @@ def delete_category(
 def get_rules(
     category_id: str | None = None,
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     try:
         query = (
-            supabase
+            db
             .from_("master_rules")
             .select(
                 """
@@ -269,10 +274,11 @@ def get_rules(
 def create_rule(
     payload: RuleCreate,
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     try:
         category_response = (
-            supabase
+            db
             .from_("rule_categories")
             .select("id")
             .eq("id", payload.category_id)
@@ -287,7 +293,7 @@ def create_rule(
             )
 
         response = (
-            supabase
+            db
             .from_("master_rules")
             .insert(
                 {
@@ -344,6 +350,7 @@ def update_rule(
     rule_id: str,
     payload: RuleUpdate,
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     update_data = {}
 
@@ -379,7 +386,7 @@ def update_rule(
 
     try:
         response = (
-            supabase
+            db
             .from_("master_rules")
             .update(update_data)
             .eq("id", rule_id)
@@ -412,10 +419,11 @@ def update_rule(
 def delete_rule(
     rule_id: str,
     current_user: UserResponse = Depends(require_admin),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ):
     try:
         response = (
-            supabase
+            db
             .from_("master_rules")
             .delete()
             .eq("id", rule_id)
