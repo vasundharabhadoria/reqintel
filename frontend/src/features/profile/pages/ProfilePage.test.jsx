@@ -11,6 +11,7 @@ vi.mock("../../../api/profileApi", () => ({
 
 import * as profileApi from "../../../api/profileApi";
 import { renderWithAuth } from "../../../test/renderWithAuth";
+import { clearProfileSummary } from "../../../hooks/useProfileSummary";
 import ProfilePage from "./ProfilePage";
 
 const emailProfile = {
@@ -63,13 +64,14 @@ function renderPage(profile = emailProfile) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  clearProfileSummary();
 });
 
 describe("ProfilePage - display", () => {
   it("shows the real account details from the API", async () => {
     renderPage();
 
-    expect(await screen.findByText("Asha Verma")).toBeInTheDocument();
+    expect(await screen.findByText("Asha Verma", { selector: "dd" })).toBeInTheDocument();
     expect(screen.getByText("asha@example.com", { selector: "dd" })).toBeInTheDocument();
     expect(screen.getAllByText("Business Analyst").length).toBeGreaterThan(0);
     expect(screen.getByText("Active")).toBeInTheDocument();
@@ -103,7 +105,7 @@ describe("ProfilePage - display", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByText("Asha Verma")).toBeInTheDocument();
+    expect(await screen.findByText("Asha Verma", { selector: "dd" })).toBeInTheDocument();
     expect(profileApi.getProfile).toHaveBeenCalledTimes(2);
   });
 });
@@ -128,7 +130,9 @@ describe("ProfilePage - edit", () => {
     // only the name is sent, normalised
     expect(profileApi.updateProfile).toHaveBeenCalledWith("Asha K Verma");
     expect(await screen.findByRole("status")).toHaveTextContent("Profile updated successfully.");
-    expect(screen.getByText("Asha K Verma")).toBeInTheDocument();
+    expect(screen.getByText("Asha K Verma", { selector: "dd" })).toBeInTheDocument();
+    // the sidebar profile section reflects the new name without a reload
+    expect(screen.getByText("Asha K Verma", { selector: ".sidebar-profile-name" })).toBeInTheDocument();
   });
 
   it("rejects an invalid name without calling the API", async () => {
@@ -168,7 +172,7 @@ describe("ProfilePage - edit", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(profileApi.updateProfile).not.toHaveBeenCalled();
-    expect(screen.getByText("Asha Verma")).toBeInTheDocument();
+    expect(screen.getByText("Asha Verma", { selector: "dd" })).toBeInTheDocument();
   });
 });
 

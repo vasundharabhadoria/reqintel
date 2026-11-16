@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
-  Bell,
-  ChevronDown,
+  ChevronUp,
   FileText,
   Folder,
-  Globe,
   LayoutGrid,
   LogOut,
   Settings,
@@ -26,44 +24,45 @@ import {
 } from "@floating-ui/react";
 
 import { useAuth } from "../../hooks/useAuth";
+import {
+  clearProfileSummary,
+  useProfileSummary,
+} from "../../hooks/useProfileSummary";
 import { roleLabel } from "../../features/profile/profileFormat";
 import "./appShell.css";
 
 const NAV_ITEMS = [
-  {
-    key: "dashboard",
-    label: "Dashboard",
-    icon: LayoutGrid,
-    to: "/dashboard",
-  },
-  {
-    key: "projects",
-    label: "Projects",
-    icon: Folder,
-    to: "/projects",
-  },
-  {
-    key: "reports",
-    label: "Reports",
-    icon: FileText,
-    to: "/reports",
-  },
+  { key: "dashboard", label: "Dashboard", icon: LayoutGrid, to: "/dashboard" },
+  { key: "projects", label: "Projects", icon: Folder, to: "/projects" },
+  { key: "reports", label: "Reports", icon: FileText, to: "/reports" },
+  { key: "settings", label: "Settings", icon: Settings, to: "/settings" },
 ];
+
+function initialsOf(name, email) {
+  const source = (name || "").trim() || (email || "").split("@")[0] || "";
+  const parts = source.split(/[\s._-]+/).filter(Boolean);
+
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
 
 function AppShell({ active, children }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [profileOpen, setProfileOpen] = useState(false);
+  const profile = useProfileSummary(user?.id);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const displayName = profile?.full_name || user?.email || "Account";
+  const initials = initialsOf(profile?.full_name, user?.email);
 
   const { refs, floatingStyles, context } = useFloating({
-    open: profileOpen,
-    onOpenChange: setProfileOpen,
-    placement: "bottom-end",
-    middleware: [
-      offset(8),
-      flip({ padding: 8 }),
-      shift({ padding: 8 }),
-    ],
+    open: menuOpen,
+    onOpenChange: setMenuOpen,
+    placement: "top-start",
+    middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 })],
     whileElementsMounted: autoUpdate,
   });
 
@@ -71,30 +70,38 @@ function AppShell({ active, children }) {
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: "menu" });
 
-  const { getReferenceProps, getFloatingProps } =
-    useInteractions([click, dismiss, role]);
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    click,
+    dismiss,
+    role,
+  ]);
 
-  async function handleLogout() {
-    await logout();
-    // `replace`: the protected page must not stay in the history stack.
-    navigate("/login", { replace: true });
+  async function handleSignOut() {
+    if (signingOut) return;
+
+    setSigningOut(true);
+    setMenuOpen(false);
+
+    try {
+      await logout();
+    } finally {
+      clearProfileSummary();
+      // `replace`: the protected page must not stay in the history stack.
+      navigate("/login", { replace: true });
+    }
   }
 
-  function handleOpenProfile() {
-    setProfileOpen(false);
-    navigate("/profile");
+  function goTo(path) {
+    setMenuOpen(false);
+    navigate(path);
   }
 
   return (
     <div className="app-shell">
-
       {/* ================= HEADER ================= */}
       <header className="app-topbar">
-
-        <div className="app-brand">
-          <div className="app-logo">
-            R
-          </div>
+        <Link to="/dashboard" className="app-brand" aria-label="ReqIntel home">
+          <div className="app-logo">R</div>
 
           <span className="app-brand-name">
             Req<span>Intel</span>
@@ -104,40 +111,62 @@ function AppShell({ active, children }) {
             <Sparkles size={13} />
             AI-POWERED
           </span>
-        </div>
+        </Link>
+      </header>
 
-        <div className="app-topbar-actions">
+      {/* ================= BODY ================= */}
+      <div className="app-body">
+        {/* ================= SIDEBAR ================= */}
+        <aside className="app-sidebar">
+          <nav className="sidebar-navigation" aria-label="Main">
+            <ul>
+              {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
 
-          {/* Notifications */}
-          <button
-            type="button"
-            className="notification-button"
-            aria-label="Notifications"
-          >
-            <Bell size={21} />
-          </button>
+                return (
+                  <li key={item.key}>
+                    <NavLink
+                      to={item.to}
+                      aria-current={active === item.key ? "page" : undefined}
+                      className={`sidebar-item ${
+                        active === item.key ? "sidebar-item-active" : ""
+                      }`}
+                    >
+                      <Icon size={24} />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
 
-          {/* Profile */}
-          <div className="profile-menu">
-
+          {/* Single profile entry point */}
+          <div className="sidebar-profile">
             <button
               type="button"
               ref={refs.setReference}
               {...getReferenceProps()}
-              className="profile-trigger"
+              className={`sidebar-profile-trigger ${
+                active === "profile" ? "sidebar-profile-active" : ""
+              }`}
+              aria-label={`Account menu for ${displayName}`}
             >
-              <span className="profile-avatar">
-                {user?.email?.charAt(0).toUpperCase() || "U"}
+              <span className="profile-avatar" aria-hidden="true">
+                {initials}
               </span>
 
-              <span className="profile-label">
-                {roleLabel(user?.role)}
+              <span className="sidebar-profile-text">
+                <span className="sidebar-profile-name">{displayName}</span>
+                <span className="sidebar-profile-role">
+                  {roleLabel(user?.role)}
+                </span>
               </span>
 
-              <ChevronDown size={15} />
+              <ChevronUp size={14} aria-hidden="true" />
             </button>
 
-            {profileOpen && (
+            {menuOpen && (
               <FloatingPortal>
                 <div
                   ref={refs.setFloating}
@@ -145,15 +174,16 @@ function AppShell({ active, children }) {
                   className="profile-dropdown"
                   {...getFloatingProps()}
                 >
-                  <p className="profile-dropdown-email">
-                    {user?.email}
-                  </p>
+                  <div className="profile-dropdown-header">
+                    <p className="profile-dropdown-name">{displayName}</p>
+                    <p className="profile-dropdown-email">{user?.email}</p>
+                  </div>
 
                   <button
                     type="button"
                     role="menuitem"
                     className="profile-dropdown-item"
-                    onClick={handleOpenProfile}
+                    onClick={() => goTo("/profile")}
                   >
                     <User size={15} />
                     My Profile
@@ -162,91 +192,32 @@ function AppShell({ active, children }) {
                   <button
                     type="button"
                     role="menuitem"
+                    className="profile-dropdown-item"
+                    onClick={() => goTo("/settings")}
+                  >
+                    <Settings size={15} />
+                    Account Settings
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
                     className="profile-dropdown-logout"
-                    onClick={handleLogout}
+                    onClick={handleSignOut}
+                    disabled={signingOut}
                   >
                     <LogOut size={15} />
-                    Logout
+                    Sign Out
                   </button>
                 </div>
               </FloatingPortal>
             )}
           </div>
-
-          {/* Language */}
-          <button
-            type="button"
-            className="lang-selector"
-          >
-            <Globe size={19} />
-            <span>English</span>
-            <ChevronDown size={15} />
-          </button>
-
-        </div>
-      </header>
-
-      {/* ================= BODY ================= */}
-      <div className="app-body">
-
-        {/* ================= SIDEBAR ================= */}
-        <aside className="app-sidebar">
-
-          <nav className="sidebar-navigation">
-            <ul>
-              {NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-
-                return (
-                  <li key={item.key}>
-                    <Link
-                      to={item.to}
-                      className={`sidebar-item ${
-                        active === item.key
-                          ? "sidebar-item-active"
-                          : ""
-                      }`}
-                    >
-                      <Icon size={24} />
-                      <span>{item.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-
-              {/* Settings */}
-              <li>
-                <button
-                  type="button"
-                  className="sidebar-item"
-                  onClick={() => navigate("/profile")}
-                >
-                  <Settings size={24} />
-                  <span>Settings</span>
-                </button>
-              </li>
-            </ul>
-          </nav>
-
-          {/* Logout */}
-          <button
-            type="button"
-            className="sidebar-item sidebar-logout"
-            onClick={handleLogout}
-          >
-            <LogOut size={24} />
-            <span>Logout</span>
-          </button>
-
         </aside>
 
         {/* ================= CONTENT ================= */}
-        <main className="app-content">
-          {children}
-        </main>
-
+        <main className="app-content">{children}</main>
       </div>
-
     </div>
   );
 }
