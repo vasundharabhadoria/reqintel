@@ -170,3 +170,25 @@ def get_user_db(
         yield client
     finally:
         client.session.close()
+
+
+def get_token_claims(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    _current_user: UserResponse = Depends(get_current_user),
+) -> dict:
+    """
+    Verified claims of the caller's access token.
+
+    Depends on get_current_user so the profile / active checks have already
+    passed. Used to read the sign-in method (app_metadata) and when the user
+    last authenticated (amr). Verification is local, no network call.
+    """
+
+    try:
+        return verify_access_token(credentials.credentials)
+    except AuthenticationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc

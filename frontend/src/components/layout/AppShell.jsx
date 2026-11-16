@@ -10,6 +10,7 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  User,
 } from "lucide-react";
 import {
   FloatingPortal,
@@ -25,6 +26,7 @@ import {
 } from "@floating-ui/react";
 
 import { useAuth } from "../../hooks/useAuth";
+import { roleLabel } from "../../features/profile/profileFormat";
 import "./appShell.css";
 
 const NAV_ITEMS = [
@@ -74,7 +76,13 @@ function AppShell({ active, children }) {
 
   async function handleLogout() {
     await logout();
-    navigate("/login");
+    // `replace`: the protected page must not stay in the history stack.
+    navigate("/login", { replace: true });
+  }
+
+  function handleOpenProfile() {
+    setProfileOpen(false);
+    navigate("/profile");
   }
 
   return (
@@ -123,7 +131,7 @@ function AppShell({ active, children }) {
               </span>
 
               <span className="profile-label">
-                Business Analyst
+                {roleLabel(user?.role)}
               </span>
 
               <ChevronDown size={15} />
@@ -140,6 +148,16 @@ function AppShell({ active, children }) {
                   <p className="profile-dropdown-email">
                     {user?.email}
                   </p>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="profile-dropdown-item"
+                    onClick={handleOpenProfile}
+                  >
+                    <User size={15} />
+                    My Profile
+                  </button>
 
                   <button
                     type="button"
@@ -201,7 +219,7 @@ function AppShell({ active, children }) {
                 <button
                   type="button"
                   className="sidebar-item"
-                  onClick={() => navigate("/settings")}
+                  onClick={() => navigate("/profile")}
                 >
                   <Settings size={24} />
                   <span>Settings</span>

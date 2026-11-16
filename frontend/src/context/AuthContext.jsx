@@ -138,6 +138,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // The account no longer exists (permanent deletion), so there is no session
+  // left to revoke on the server: just forget everything locally.
+  const endSession = useCallback(() => {
+    clearTokens();
+    setUser(null);
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -148,6 +155,7 @@ export function AuthProvider({ children }) {
         loginWithOAuthCode,
         register,
         logout,
+        endSession,
       }}
     >
       {children}

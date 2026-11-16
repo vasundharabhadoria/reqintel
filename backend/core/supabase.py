@@ -30,6 +30,26 @@ def create_auth_client() -> Client:
     )
 
 
+def create_admin_client() -> Client:
+    """
+    Return a NEW, stateless service-role client for the Supabase Auth Admin API.
+
+    Used ONLY by account deletion (auth.admin.delete_user), which cannot be
+    done with a user token. It is created per call, never shared and never
+    signed in, and must never be imported by API route modules or exposed
+    to the frontend. SUPABASE_SERVICE_ROLE_KEY stays on the server.
+    """
+
+    return create_client(
+        settings.SUPABASE_URL,
+        settings.SUPABASE_SERVICE_ROLE_KEY,
+        options=ClientOptions(
+            persist_session=False,
+            auto_refresh_token=False,
+        ),
+    )
+
+
 @lru_cache
 def get_rules_client() -> SyncPostgrestClient:
     """

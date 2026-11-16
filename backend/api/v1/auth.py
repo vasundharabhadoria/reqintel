@@ -1,5 +1,8 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.exceptions import (
     AccountDisabledError,
@@ -12,13 +15,24 @@ from auth.exceptions import (
     RateLimitedError,
     RegistrationError,
 )
+from auth.account_service import (
+    AccountDeletionError,
+    AccountDeletionService,
+    auth_providers,
+    reauth_method,
+)
+from auth.profile_repository import ProfileRepository
 from auth.schemas import (
+    AccountDeletionResponse,
+    DeleteAccountRequest,
     EmailRequest,
     LoginRequest,
     MessageResponse,
     OAuthExchangeRequest,
     OAuthProvider,
     OAuthUrlResponse,
+    ProfileResponse,
+    ProfileUpdateRequest,
     RefreshRequest,
     ResetPasswordRequest,
     SignUpRequest,
@@ -29,6 +43,7 @@ from auth.service import AuthService
 from core.dependencies import (
     bearer_scheme,
     get_current_user,
+    get_token_claims,
 )
 from core.rate_limit import (
     client_ip,
@@ -42,6 +57,9 @@ from core.rate_limit import (
     reset_limiter,
     signup_limiter,
 )
+
+
+from db.session import get_db
 
 
 router = APIRouter(
@@ -231,6 +249,100 @@ def logout(
         raise _unauthorized(exc) from exc
 
     return {"message": "Logged out successfully."}
+
+
+def _profile_response(row: dict, claims: dict) -> ProfileResponse:
+    primary, providers = auth_providers(claims)
+
+    return ProfileResponse(
+        **row,
+        auth_provider=primary,
+        providers=providers,
+        reauth_method=reauth_method(providers),
+    )
+
+
+@router.get(
+    "/profile",
+    response_model=ProfileResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_profile(
+    current_user: UserResponse = Depends(get_current_user),
+    claims: dict = Depends(get_token_claims),
+    db: AsyncSession = Depends(get_db),
+) -> ProfileResponse:
+    """The caller's own profile. The id always comes from the verified JWT."""
+
+    row = await ProfileRepository(db).get(UUID(current_user.id))
+    await db.rollback()  # read-only
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found.",
+        )
+
+    return _profile_response(row, claims)
+
+
+@router.patch(
+    "/profile",
+    response_model=ProfileResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def update_profile(
+    payload: ProfileUpdateRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    claims: dict = Depends(get_token_claims),
+    db: AsyncSession = Depends(get_db),
+) -> ProfileResponse:
+    """Change the caller's full name. No other field can be modified."""
+
+    row = await ProfileRepository(db).update_full_name(
+        UUID(current_user.id), payload.full_name
+    )
+
+    if row is None:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found.",
+        )
+
+    await db.commit()
+    return _profile_response(row, claims)
+
+
+@router.delete(
+    "/account",
+    response_model=AccountDeletionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_account(
+    payload: DeleteAccountRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    claims: dict = Depends(get_token_claims),
+    db: AsyncSession = Depends(get_db),
+) -> AccountDeletionResponse:
+    """
+    Permanently delete the CALLER's account and everything they own.
+
+    There is no user id in the request: the target is the verified JWT's
+    subject, so one user can never delete another. Requires typing DELETE
+    plus re-authentication (see AccountDeletionService).
+    """
+
+    service = AccountDeletionService(db, auth_service=auth_service)
+
+    try:
+        return await service.delete_account(current_user, claims, payload)
+
+    except AccountDeletionError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
 
 
 @router.post(

@@ -1,8 +1,9 @@
 import re
 import unicodedata
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 FULL_NAME_MIN_LENGTH = 2
 # public.users.full_name is VARCHAR(150). Longer names would make the
@@ -44,6 +45,27 @@ def _normalise_email(value: str) -> str:
     return str(value).strip().lower()
 
 
+def normalise_full_name(value: str) -> str:
+    """Shared full-name rules for sign-up and profile editing."""
+
+    name = " ".join(value.split())
+
+    if any(unicodedata.category(ch).startswith("C") for ch in name):
+        raise ValueError("Full name contains invalid characters.")
+
+    if len(name) < FULL_NAME_MIN_LENGTH:
+        raise ValueError(
+            f"Full name must contain at least {FULL_NAME_MIN_LENGTH} characters."
+        )
+
+    if len(name) > FULL_NAME_MAX_LENGTH:
+        raise ValueError(
+            f"Full name must not exceed {FULL_NAME_MAX_LENGTH} characters."
+        )
+
+    return name
+
+
 class SignUpRequest(BaseModel):
     """Data required to register a new user."""
 
@@ -64,22 +86,7 @@ class SignUpRequest(BaseModel):
     @field_validator("full_name")
     @classmethod
     def _full_name(cls, value: str) -> str:
-        name = " ".join(value.split())
-
-        if any(unicodedata.category(ch).startswith("C") for ch in name):
-            raise ValueError("Full name contains invalid characters.")
-
-        if len(name) < FULL_NAME_MIN_LENGTH:
-            raise ValueError(
-                f"Full name must contain at least {FULL_NAME_MIN_LENGTH} characters."
-            )
-
-        if len(name) > FULL_NAME_MAX_LENGTH:
-            raise ValueError(
-                f"Full name must not exceed {FULL_NAME_MAX_LENGTH} characters."
-            )
-
-        return name
+        return normalise_full_name(value)
 
 
 class LoginRequest(BaseModel):
@@ -151,3 +158,54 @@ class UserResponse(BaseModel):
     id: str
     email: EmailStr
     role: str = "business_analyst"
+
+
+class ProfileResponse(BaseModel):
+    """The caller's own profile (public.users + the sign-in method)."""
+
+    id: str
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None = None
+    auth_provider: str
+    providers: list[str]
+    # How Delete Account asks the user to prove it is really them.
+    reauth_method: Literal["password", "recent_login"]
+
+
+class ProfileUpdateRequest(BaseModel):
+    """
+    Only the full name is editable. extra="forbid" turns any attempt to send
+    role, is_active, id, email, ... into a 422 instead of silently ignoring it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str = Field(max_length=FULL_NAME_MAX_LENGTH + 100)
+
+    @field_validator("full_name")
+    @classmethod
+    def _full_name(cls, value: str) -> str:
+        return normalise_full_name(value)
+
+
+class DeleteAccountRequest(BaseModel):
+    """
+    No user id here on purpose: the account to delete is always the one in
+    the verified JWT. extra="forbid" rejects any attempt to name another.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirmation: Literal["DELETE"]
+    # Required for accounts with an email/password identity.
+    password: str | None = Field(default=None, max_length=PASSWORD_MAX_LENGTH)
+
+
+class AccountDeletionResponse(BaseModel):
+    message: str
+    projects_deleted: int
+    storage_files_removed: int

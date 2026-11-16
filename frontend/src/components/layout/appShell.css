@@ -280,6 +280,31 @@
   word-break: break-all;
 }
 
+.profile-dropdown-item {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 10px;
+
+  border: none;
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #1f2937;
+
+  font-size: 13px;
+
+  cursor: pointer;
+}
+
+.profile-dropdown-item:hover {
+  background: #f1f5f9;
+}
+
 .profile-dropdown-logout {
   width: 100%;
 

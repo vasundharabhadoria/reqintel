@@ -268,6 +268,42 @@ class AuthService:
             refresh_token=response.session.refresh_token,
         )
 
+    def verify_password(self, user_id: str, email: str, password: str) -> None:
+        """
+        Re-check the signed-in user's password (re-authentication for
+        sensitive actions such as account deletion).
+
+        `email` and `user_id` always come from the verified JWT, never from
+        the client. The check signs in on a throw-away client; the session it
+        creates is revoked straight away so no extra session is left behind.
+        """
+
+        client = self.client_factory()
+
+        try:
+            response = client.auth.sign_in_with_password(
+                {"email": email, "password": password}
+            )
+
+        except AuthApiError as exc:
+            if _is_rate_limited(exc):
+                raise RateLimitedError(
+                    "Too many attempts. Please wait and try again."
+                ) from exc
+
+            raise AuthenticationError("Incorrect password.") from exc
+
+        if response.user is None or str(response.user.id) != str(user_id):
+            raise AuthenticationError("Incorrect password.")
+
+        if response.session is not None:
+            try:
+                client.auth.admin.sign_out(
+                    response.session.access_token, scope="local"
+                )
+            except Exception:  # best effort: the session expires on its own
+                logger.warning("Could not revoke the re-authentication session.")
+
     def refresh(self, refresh_token: str) -> TokenResponse:
         """
         Exchange a refresh token for a new access/refresh token pair.

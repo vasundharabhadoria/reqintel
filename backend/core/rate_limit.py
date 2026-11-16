@@ -97,6 +97,8 @@ email_action_account_limiter = RateLimiter("email-account", limit=3, window_seco
 refresh_limiter = RateLimiter("refresh", limit=60, window_seconds=60)
 reset_limiter = RateLimiter("reset", limit=10, window_seconds=900)
 oauth_limiter = RateLimiter("oauth", limit=30, window_seconds=300)
+# Per signed-in user: every attempt to delete the account, including wrong passwords.
+account_delete_limiter = RateLimiter("account-delete", limit=5, window_seconds=3600)
 
 ALL_LIMITERS = [
     login_ip_limiter,
@@ -107,4 +109,5 @@ ALL_LIMITERS = [
     refresh_limiter,
     reset_limiter,
     oauth_limiter,
+    account_delete_limiter,
 ]
