@@ -997,16 +997,6 @@ const missingChild = selectedCounts.children.length === 0;
         </article>
 
         <article className="trace-stat-card">
-          <span className="trace-stat-icon trace-blue">
-            <RefreshCw size={23} />
-          </span>
-          <div>
-            <h3>{loading ? "—" : stats.changed}</h3>
-            <p>Changed Since Last Version</p>
-          </div>
-        </article>
-
-        <article className="trace-stat-card">
           <span className="trace-stat-icon trace-teal">
             <FileText size={23} />
           </span>
