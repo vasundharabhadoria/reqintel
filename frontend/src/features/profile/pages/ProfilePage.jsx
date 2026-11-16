@@ -2,9 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { KeyRound, LogOut, Pencil, ShieldCheck, Trash2, UserRound } from "lucide-react";
 
-import { deleteAccount, getProfile, updateProfile } from "../../../api/profileApi";
+import { deleteAccount, updateProfile } from "../../../api/profileApi";
 import AppShell from "../../../components/layout/AppShell";
 import { useAuth } from "../../../hooks/useAuth";
+import {
+  clearProfileSummary,
+  fetchProfileSummary,
+  setProfileSummary,
+} from "../../../hooks/useProfileSummary";
 import DeleteAccountModal from "../components/DeleteAccountModal";
 import {
   FULL_NAME_MAX_LENGTH,
@@ -56,9 +61,11 @@ function ProfilePage() {
 
     async function load() {
       try {
-        const data = await getProfile();
+        const data = await fetchProfileSummary();
 
-        if (!cancelled) setProfile(data);
+        if (!cancelled) {
+          setProfile(data);
+        }
       } catch (err) {
         if (!cancelled) setLoadError(err.message);
       } finally {
@@ -109,7 +116,9 @@ function ProfilePage() {
     try {
       // Only the full name is ever sent: role, status, email and id are not
       // editable, and the server rejects any attempt to include them.
-      setProfile(await updateProfile(name.trim().replace(/\s+/g, " ")));
+      const updated = await updateProfile(name.trim().replace(/\s+/g, " "));
+      setProfile(updated);
+      setProfileSummary(updated);
       setSaved(true);
       setEditing(false);
     } catch (err) {
@@ -123,7 +132,11 @@ function ProfilePage() {
 
   async function handleSignOut() {
     setSigningOut(true);
-    await logout();
+    try {
+      await logout();
+    } finally {
+      clearProfileSummary();
+    }
     // `replace` keeps the protected page out of the history stack.
     navigate("/login", { replace: true });
   }
@@ -150,6 +163,7 @@ function ProfilePage() {
 
     // Both run in the same tick, so the router never sees "signed out on a
     // protected page" and the user lands on /login with the confirmation.
+    clearProfileSummary();
     endSession();
     navigate("/login", {
       replace: true,

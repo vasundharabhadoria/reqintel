@@ -12,6 +12,7 @@ import ProjectWorkspacePage from "../features/requirements/pages/ProjectWorkspac
 import RuleEnginePage from "../features/rule-engine/pages/RuleEnginePage";
 import MasterModulePage from "../features/master-module/pages/MasterModulePage";
 import ProfilePage from "../features/profile/pages/ProfilePage";
+import SettingsPage from "../features/settings/pages/SettingsPage";
 import ProtectedRoute from "./ProtectedRoute";
 import OAuthReturnGate from "./OAuthReturnGate";
 import PublicOnlyRoute from "./PublicOnlyRoute";
@@ -70,6 +71,15 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />
